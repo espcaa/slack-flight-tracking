@@ -65,7 +65,9 @@ func Start(config shared.Config) {
 
 	r.Get("/commands/{name}", func(w http.ResponseWriter, r *http.Request) {
 		name := chi.URLParam(r, "name")
-		log.Println("seems like you're trying to run the " + name + " command...")
+		// log.Println("seems like you're trying to run the " + name + " command...")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("seems like you're trying to run the " + name + " command..."))
 	})
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
