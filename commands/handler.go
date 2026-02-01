@@ -1,8 +1,8 @@
 package commands
 
 import (
+	"encoding/json"
 	"flight-tracker-slack/shared"
-	"fmt"
 	"log"
 	"net/http"
 
@@ -10,41 +10,53 @@ import (
 )
 
 func HandleCommand(name string, w http.ResponseWriter, r *http.Request, config shared.Config) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	err := r.ParseForm()
+	s, err := slack.SlashCommandParse(r)
 	if err != nil {
-		fmt.Println("Error parsing form:", err)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	commandText := r.FormValue("text")
-	responseURL := r.FormValue("response_url")
-	var response []slack.Block
-	switch name {
-	case "track":
-		response = Track(commandText, responseURL, config)
-	case "help":
-		response = Help()
-	case "list":
-		response = List(commandText, responseURL, config)
-	case "untrack":
-		response = Untrack(commandText, responseURL, config)
-	default:
-		log.Println("Unknown command:", name)
-		http.Error(w, "Unknown command", http.StatusBadRequest)
+
+	params := &slack.Msg{
+		ResponseType: slack.ResponseTypeEphemeral,
+		Text:         "processing /" + name + " ...",
 	}
 
-	// answer the websocket or smth
-
-	payload := &slack.WebhookMessage{
-		Blocks: &slack.Blocks{
-			BlockSet: response,
-		},
+	b, err := json.Marshal(params)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
-	slack.PostWebhook(responseURL, payload)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(b)
 
-	// answer the initial request
-	w.Write([]byte("Processing your command..."))
+	go func(cmd slack.SlashCommand) {
+		var blocks []slack.Block
+
+		switch name {
+		case "track":
+			blocks = Track(cmd.Text, cmd.ResponseURL, config)
+		case "help":
+			blocks = Help()
+		case "list":
+			blocks = List(cmd.Text, cmd.ResponseURL, config)
+		case "untrack":
+			blocks = Untrack(cmd.Text, cmd.ResponseURL, config)
+		default:
+			log.Println("Unknown command:", name)
+			return
+		}
+
+		payload := &slack.WebhookMessage{
+			Blocks: &slack.Blocks{
+				BlockSet: blocks,
+			},
+		}
+
+		err := slack.PostWebhook(cmd.ResponseURL, payload)
+		if err != nil {
+			log.Printf("failed to post to webhook: %v", err)
+		}
+	}(s)
 }
