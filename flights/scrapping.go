@@ -1,8 +1,7 @@
-package scraps
+package flights
 
 import (
 	"encoding/json"
-	structs "flight-tracker-slack/types"
 	"io"
 	"net/http"
 	"regexp"
@@ -24,8 +23,8 @@ func unixToTime(timestamp int64) time.Time {
 
 var dataRegex = regexp.MustCompile(`trackpollBootstrap = (\{.*?\});`)
 
-func GetFlightInfo(flightNumber string) (structs.FlightDataWrapper, error) {
-	// create a http client with timeout
+func GetFlightInfo(flightNumber string) (FlightDataWrapper, error) {
+	// http client with a high timeout because it can be slow
 
 	client := &http.Client{
 		Timeout: 100 * time.Second,
@@ -34,38 +33,38 @@ func GetFlightInfo(flightNumber string) (structs.FlightDataWrapper, error) {
 		"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
 	}
 
-	// make a get request
+	// just get the page with a normal request
 	req, err := http.NewRequest("GET", "https://fr.flightaware.com/live/flight/"+flightNumber, nil)
 	if err != nil {
-		return structs.FlightDataWrapper{}, err
+		return FlightDataWrapper{}, err
 	}
 	for key, value := range headers {
 		req.Header.Set(key, value)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return structs.FlightDataWrapper{}, err
+		return FlightDataWrapper{}, err
 	}
 	defer resp.Body.Close()
 
-	// read the response body
+	// we can now parse the body to find the json data
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return structs.FlightDataWrapper{}, err
+		return FlightDataWrapper{}, err
 	}
 
 	matches := dataRegex.FindSubmatch(body)
 	if len(matches) < 2 {
-		return structs.FlightDataWrapper{}, nil
+		return FlightDataWrapper{}, nil
 	}
 
 	jsonData := matches[1]
 
-	var flightData structs.FlightDataWrapper
+	var flightData FlightDataWrapper
 	err = json.Unmarshal(jsonData, &flightData)
 	if err != nil {
-		return structs.FlightDataWrapper{}, err
+		return FlightDataWrapper{}, err
 	}
 
 	return flightData, nil

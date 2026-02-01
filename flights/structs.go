@@ -1,6 +1,7 @@
-package structs
+package flights
 
 import (
+	"regexp"
 	"time"
 )
 
@@ -116,4 +117,23 @@ func (fd *FlightDetail) GetSchedule() FlightSchedule {
 		ArrivalEstimated:   fd.GateArrivalTimes.ToTime(fd.GateArrivalTimes.Estimated),
 		ArrivalActual:      fd.GateArrivalTimes.ToTime(fd.GateArrivalTimes.Actual),
 	}
+}
+
+type ICAOFlightNumber string
+
+var ICAOFlightNumberRegex = regexp.MustCompile(`^[A-Z]{2}\d{2,4}$`)
+
+func (icao ICAOFlightNumber) IsValid() bool {
+	return ICAOFlightNumberRegex.MatchString(string(icao))
+}
+
+type AirlineDBRecord struct {
+	AirlineID string
+	Name      string
+	Alias     string
+	IATA      string
+	ICAO      string
+	Indicatif string
+	Country   string
+	Active    string
 }
