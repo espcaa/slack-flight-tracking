@@ -62,6 +62,22 @@ func Start(config shared.Config) {
 		log.Println("Received command: " + name)
 		commands.HandleCommand(name, w, r, config)
 	})
+
+	r.Get("/commands/{name}", func(w http.ResponseWriter, r *http.Request) {
+		name := chi.URLParam(r, "name")
+		log.Println("seems like you're trying to run the " + name + " command...")
+	})
+
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("haiii"))
+	})
+
 	log.Println("Starting server on port " + config.Port)
 
 	// commands endpoints
