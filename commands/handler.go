@@ -1,7 +1,9 @@
 package commands
 
 import (
+	"bytes"
 	"flight-tracker-slack/shared"
+	"io"
 	"log"
 	"net/http"
 
@@ -21,14 +23,39 @@ func init() {
 }
 
 func HandleCommand(name string, w http.ResponseWriter, r *http.Request, config shared.Config) {
+
+	// verify the request
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	sv, err := slack.NewSecretsVerifier(r.Header, config.SigningSecret)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if _, err := sv.Write(body); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if err := sv.Ensure(); err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	r.Body = io.NopCloser(bytes.NewBuffer(body))
+
+	w.WriteHeader(http.StatusOK)
+
+	// parse the slash command
 	s, err := slack.SlashCommandParse(r)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-
+	// run the command in a separate goroutine
 	go func(cmd slack.SlashCommand) {
 		var blocks []slack.Block
 		var inChannel bool = true

@@ -36,12 +36,18 @@ func main() {
 		log.Fatal("SLACK_BOT_TOKEN environment variable not set")
 	}
 
+	slackSigningSecret := os.Getenv("SLACK_SIGNING_SECRET")
+	if slackSigningSecret == "" {
+		log.Fatal("SLACK_SIGNING_SECRET environment variable not set")
+	}
+
 	tileStore := maps.NewTileStore("./data/map")
 
 	config := shared.Config{
-		Port:        port,
-		SlackClient: slack.New(slackToken),
-		TileStore:   tileStore,
+		Port:          port,
+		SlackClient:   slack.New(slackToken),
+		TileStore:     tileStore,
+		SigningSecret: slackSigningSecret,
 	}
 
 	Start(config)

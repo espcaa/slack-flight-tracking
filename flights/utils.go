@@ -15,6 +15,17 @@ var (
 	FlightNumPattern = regexp.MustCompile(`^[A-Z]{2,3}\d{1,4}$`) // full flight numbers like "AF102" or "AFR102"
 )
 
+var db *sql.DB
+
+func init() {
+	// init the db connection
+	var err error
+	db, err = GetAirlinesDB()
+	if err != nil {
+		panic("failed to connect to airlines database: " + err.Error())
+	}
+}
+
 // GetAirlinesDB opens a read-only connection to the airlines database
 func GetAirlinesDB() (*sql.DB, error) {
 	db, err := sql.Open("sqlite", "file:data/airlines.db?cache=shared&mode=ro")
@@ -75,11 +86,6 @@ func AirlineCodeToICAO(db *sql.DB, code string) (string, error) {
 // ExpandFlightNumber ensures a flight number uses the ICAO airline code
 // e.g., "AF102" → "AFR102"
 func ExpandFlightNumber(flight string) (string, error) {
-	db, err := GetAirlinesDB()
-	if err != nil {
-		return "", err
-	}
-	defer db.Close()
 
 	// Regex to split letters vs digits
 	var flightParts = regexp.MustCompile(`^([A-Z]{2,3})(\d{1,4})$`)

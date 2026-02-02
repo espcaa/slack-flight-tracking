@@ -8,10 +8,11 @@ import (
 )
 
 type Config struct {
-	Port        string
-	UserDB      *sql.DB
-	SlackClient *slack.Client
-	TileStore   *maps.TileStore
+	Port          string
+	UserDB        *sql.DB
+	SlackClient   *slack.Client
+	TileStore     *maps.TileStore
+	SigningSecret string
 }
 
 type Command struct {
