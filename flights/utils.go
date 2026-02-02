@@ -75,30 +75,22 @@ func AirlineCodeToICAO(db *sql.DB, code string) (string, error) {
 // ExpandFlightNumber ensures a flight number uses the ICAO airline code
 // e.g., "AF102" → "AFR102"
 func ExpandFlightNumber(flight string) (string, error) {
-
 	db, err := GetAirlinesDB()
 	if err != nil {
 		return "", err
 	}
 	defer db.Close()
 
-	// Validate flight number format
-
-	if !FlightNumPattern.MatchString(flight) {
+	// Regex to split letters vs digits
+	var flightParts = regexp.MustCompile(`^([A-Z]{2,3})(\d{1,4})$`)
+	matches := flightParts.FindStringSubmatch(flight)
+	if matches == nil {
 		return "", errors.New("invalid flight number format")
 	}
 
-	// Extract airline code and numeric part
-	var code, num string
-	if len(flight) == 5 || len(flight) == 6 { // IATA + number
-		code = flight[:2]
-		num = flight[2:]
-	} else { // ICAO + number
-		code = flight[:3]
-		num = flight[3:]
-	}
+	code := matches[1] // airline code (IATA or ICAO)
+	num := matches[2]  // numeric part
 
-	// Convert to ICAO if needed
 	icao, err := AirlineCodeToICAO(db, code)
 	if err != nil {
 		return "", err

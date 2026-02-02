@@ -13,7 +13,7 @@ var UntrackCommand = shared.Command{
 	Execute:     Untrack,
 }
 
-func Untrack(commandText string, responseURL string, config shared.Config) []slack.Block {
+func Untrack(commandText string, responseURL string, config shared.Config) ([]slack.Block, bool) {
 	// untrack logic here
-	return []slack.Block{}
+	return []slack.Block{}, true
 }

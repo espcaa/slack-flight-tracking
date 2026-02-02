@@ -16,7 +16,7 @@ var InfoCommand = shared.Command{
 	Execute:     FlightInfo,
 }
 
-func FlightInfo(commandText string, responseURL string, config shared.Config) []slack.Block {
+func FlightInfo(commandText string, responseURL string, config shared.Config) ([]slack.Block, bool) {
 	// get the arguments
 
 	args, err := shlex.Split(commandText)
@@ -27,7 +27,7 @@ func FlightInfo(commandText string, responseURL string, config shared.Config) []
 				nil,
 				nil,
 			),
-		}
+		}, false
 	}
 
 	flightNumber := args[0]
@@ -39,11 +39,16 @@ func FlightInfo(commandText string, responseURL string, config shared.Config) []
 	if !flights.FlightNumPattern.MatchString(flightNumber) {
 		return []slack.Block{
 			slack.NewSectionBlock(
-				slack.NewTextBlockObject(slack.MarkdownType, "Invalid flight number format. Please provide a valid IATA or ICAO flight number.", false, false),
+				slack.NewTextBlockObject(slack.MarkdownType, "Doesn't look like a valid flight number... :pensive:", false, false),
 				nil,
 				nil,
 			),
-		}
+			slack.NewSectionBlock(
+				slack.NewTextBlockObject(slack.MarkdownType, "_Flight numbers usually look like `AA100` or `DLH400`._", false, false),
+				nil,
+				nil,
+			),
+		}, false
 	}
 
 	// expand it
@@ -51,16 +56,16 @@ func FlightInfo(commandText string, responseURL string, config shared.Config) []
 	if err != nil {
 		return []slack.Block{
 			slack.NewSectionBlock(
-				slack.NewTextBlockObject(slack.MarkdownType, "Could not expand flight number. Please ensure the flight number is correct.", false, false),
+				slack.NewTextBlockObject(slack.MarkdownType, "Could not expand flight number :x:", false, false),
 				nil,
 				nil,
 			),
 			slack.NewSectionBlock(
-				slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("Error details: %v", err), false, false),
+				slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("_Error details:_ ```%v```", err), false, false),
 				nil,
 				nil,
 			),
-		}
+		}, false
 	}
 
 	// fetch flight info
@@ -68,11 +73,16 @@ func FlightInfo(commandText string, responseURL string, config shared.Config) []
 	if err != nil {
 		return []slack.Block{
 			slack.NewSectionBlock(
-				slack.NewTextBlockObject(slack.MarkdownType, "Could not retrieve flight information. Please ensure the flight number is correct.", false, false),
+				slack.NewTextBlockObject(slack.MarkdownType, "We were unable to retrieve information for that flight :x:", false, false),
 				nil,
 				nil,
 			),
-		}
+			slack.NewSectionBlock(
+				slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("_Error details:_ ```%v```", err), false, false),
+				nil,
+				nil,
+			),
+		}, false
 	}
 
 	var fd flights.FlightDetail
@@ -117,5 +127,5 @@ func FlightInfo(commandText string, responseURL string, config shared.Config) []
 		nil,
 	))
 
-	return blocks
+	return blocks, true
 }

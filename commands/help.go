@@ -14,7 +14,7 @@ var HelpCommand = shared.Command{
 	Execute:     Help,
 }
 
-func Help(commandText string, responseURL string, config shared.Config) []slack.Block {
+func Help(commandText string, responseURL string, config shared.Config) ([]slack.Block, bool) {
 	var specificCommand *shared.Command
 	var helpBlocks []slack.Block
 
@@ -51,5 +51,5 @@ func Help(commandText string, responseURL string, config shared.Config) []slack.
 		))
 	}
 
-	return helpBlocks
+	return helpBlocks, false
 }
