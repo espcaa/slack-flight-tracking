@@ -104,23 +104,7 @@ func DrawCroppedMapPixels(store *TileStore, zoom int, x1, y1, x2, y2 float64) (*
 }
 
 func GenerateMapFromFlightDetail(store *TileStore, flightDetails flights.FlightDetail) (string, error) {
-	zoom := 4
-
-	rawTopLat := math.Max(flightDetails.Origin.Coordinates[1], flightDetails.Destination.Coordinates[1])
-	rawBottomLat := math.Min(flightDetails.Origin.Coordinates[1], flightDetails.Destination.Coordinates[1])
-	rawLeftLon := math.Min(flightDetails.Origin.Coordinates[0], flightDetails.Destination.Coordinates[0])
-	rawRightLon := math.Max(flightDetails.Origin.Coordinates[0], flightDetails.Destination.Coordinates[0])
-
-	pMin := LonLatToPixel(rawTopLat, rawLeftLon, zoom)
-	pMax := LonLatToPixel(rawBottomLat, rawRightLon, zoom)
-
-	p1X, p1Y := pMin.X-256, pMin.Y-256
-	p2X, p2Y := pMax.X+256, pMax.Y+256
-
-	canvas, err := DrawCroppedMapPixels(store, zoom, p1X, p1Y, p2X, p2Y)
-	if err != nil {
-		return "", err
-	}
+	zoom := 6
 
 	var lastTrackPoint flights.TrackPoint
 	for _, tp := range flightDetails.Track {
@@ -129,21 +113,68 @@ func GenerateMapFromFlightDetail(store *TileStore, flightDetails flights.FlightD
 		}
 	}
 
-	planePix := LonLatToPixel(lastTrackPoint.Coord[1], lastTrackPoint.Coord[0], zoom)
-	planeX := planePix.X - p1X
-	planeY := planePix.Y - p1Y
+	rawTopLat := flightDetails.Origin.Coordinates[1]
+	rawBottomLat := flightDetails.Origin.Coordinates[1]
+	rawLeftLon := flightDetails.Origin.Coordinates[0]
+	rawRightLon := flightDetails.Origin.Coordinates[0]
 
-	if planeIcon != nil {
-		offsetX := int(planeX) - planeIcon.Bounds().Dx()/2
-		offsetY := int(planeY) - planeIcon.Bounds().Dy()/2
-		draw.Draw(canvas, image.Rectangle{
-			Min: image.Point{offsetX, offsetY},
-			Max: image.Point{offsetX + planeIcon.Bounds().Dx(), offsetY + planeIcon.Bounds().Dy()},
-		}, planeIcon, image.Point{0, 0}, draw.Over)
+	// expand bounds to include all track points
+	for _, tp := range flightDetails.Track {
+		lat, lon := tp.Coord[1], tp.Coord[0]
+		if lat > rawTopLat {
+			rawTopLat = lat
+		}
+		if lat < rawBottomLat {
+			rawBottomLat = lat
+		}
+		if lon < rawLeftLon {
+			rawLeftLon = lon
+		}
+		if lon > rawRightLon {
+			rawRightLon = lon
+		}
+
+		if tp.Timestamp > lastTrackPoint.Timestamp {
+			lastTrackPoint = tp
+		}
 	}
 
+	dLat, dLon := flightDetails.Destination.Coordinates[1], flightDetails.Destination.Coordinates[0]
+	if dLat > rawTopLat {
+		rawTopLat = dLat
+	}
+	if dLat < rawBottomLat {
+		rawBottomLat = dLat
+	}
+	if dLon < rawLeftLon {
+		rawLeftLon = dLon
+	}
+	if dLon > rawRightLon {
+		rawRightLon = dLon
+	}
+
+	pMin := LonLatToPixel(rawTopLat, rawLeftLon, zoom)
+	pMax := LonLatToPixel(rawBottomLat, rawRightLon, zoom)
+
+	// huge padding so that it looks nice for short flights!
+	p1X, p1Y := pMin.X-256, pMin.Y-256
+	p2X, p2Y := pMax.X+256, pMax.Y+256
+
+	canvas, err := DrawCroppedMapPixels(store, zoom, p1X, p1Y, p2X, p2Y)
+	if err != nil {
+		return "", err
+	}
+
+	// scaling thingies
+
+	imgW := float64(canvas.Bounds().Dx())
+	imgH := float64(canvas.Bounds().Dy())
+
+	base := math.Sqrt(imgW * imgH)
+
+	// draw text
 	dc := gg.NewContextForRGBA(canvas)
-	if err := dc.LoadFontFace("assets/figtree-heavy.ttf", 24); err != nil {
+	if err := dc.LoadFontFace("assets/figtree-heavy.ttf", base*0.035); err != nil {
 		return "", err
 	}
 
@@ -160,6 +191,39 @@ func GenerateMapFromFlightDetail(store *TileStore, flightDetails flights.FlightD
 	destX := destPix.X - p1X
 	destY := destPix.Y - p1Y
 	dc.DrawStringAnchored(flightDetails.Destination.Iata, destX, destY-10, 0.5, 1)
+
+	// draw the flight track from each track point
+	if len(flightDetails.Track) >= 2 {
+
+		dc.SetLineWidth(base * 0.006)
+		dc.SetHexColor("#fb4934")
+		for i := 1; i < len(flightDetails.Track); i++ {
+			prev := flightDetails.Track[i-1]
+			curr := flightDetails.Track[i]
+			prevPix := LonLatToPixel(prev.Coord[1], prev.Coord[0], zoom)
+			currPix := LonLatToPixel(curr.Coord[1], curr.Coord[0], zoom)
+			dc.DrawLine(prevPix.X-p1X, prevPix.Y-p1Y, currPix.X-p1X, currPix.Y-p1Y)
+			dc.Stroke()
+		}
+	}
+
+	// draw the plane icon!
+
+	if planeIcon != nil {
+		planeSize := base * 0.045
+		planePix := LonLatToPixel(lastTrackPoint.Coord[1], lastTrackPoint.Coord[0], zoom)
+		planeX := planePix.X - p1X
+		planeY := planePix.Y - p1Y
+		iconW := float64(planeIcon.Bounds().Dx())
+		scale := planeSize / iconW
+
+		dc.Push()
+		dc.Translate(planeX, planeY)
+		dc.Rotate(gg.Radians(float64(flightDetails.Heading + 90)))
+		dc.Scale(scale, scale)
+		dc.DrawImageAnchored(planeIcon, 0, 0, 0.5, 0.5)
+		dc.Pop()
+	}
 
 	outputPath := fmt.Sprintf("flight_map_%s.png", uuid.New().String())
 	outFile, err := os.Create(outputPath)
