@@ -7,14 +7,14 @@ import (
 )
 
 type Config struct {
-	SlackToken string
-	Port       string
-	UserDB     *sql.DB
+	Port        string
+	UserDB      *sql.DB
+	SlackClient *slack.Client
 }
 
 type Command struct {
 	Name        string
 	Description string
 	Usage       string
-	Execute     func(commandText string, responseURL string, config Config) ([]slack.Block, bool)
+	Execute     func(slashCommand slack.SlashCommand, config Config) (blocks []slack.Block, inChannel bool, after func())
 }

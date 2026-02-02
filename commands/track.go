@@ -14,11 +14,11 @@ var TrackCommand = shared.Command{
 	Execute:     Track,
 }
 
-func Track(commandText string, responseURL string, config shared.Config) ([]slack.Block, bool) {
+func Track(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block, bool, func()) {
 	// parse the arguments from commandText
 	// separate by spaces or "" when multiple words
 
-	args, err := shlex.Split(commandText)
+	args, err := shlex.Split(slashCommand.Text)
 	if err != nil || len(args) < 1 {
 		return []slack.Block{
 			slack.NewSectionBlock(
@@ -26,7 +26,7 @@ func Track(commandText string, responseURL string, config shared.Config) ([]slac
 				nil,
 				nil,
 			),
-		}, false
+		}, false, nil
 	}
 
 	flightNumber := args[0]
@@ -45,5 +45,5 @@ func Track(commandText string, responseURL string, config shared.Config) ([]slac
 	}
 
 	// if there's a date, parse it as a
-	return []slack.Block{}, true
+	return []slack.Block{}, true, nil
 }

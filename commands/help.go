@@ -14,11 +14,11 @@ var HelpCommand = shared.Command{
 	Execute:     Help,
 }
 
-func Help(commandText string, responseURL string, config shared.Config) ([]slack.Block, bool) {
+func Help(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block, bool, func()) {
 	var specificCommand *shared.Command
 	var helpBlocks []slack.Block
 
-	args, err := shlex.Split(commandText)
+	args, err := shlex.Split(slashCommand.Text)
 	if err == nil && len(args) >= 1 {
 		commandName := args[0]
 		for _, cmd := range CommandList {
@@ -51,5 +51,5 @@ func Help(commandText string, responseURL string, config shared.Config) ([]slack
 		))
 	}
 
-	return helpBlocks, false
+	return helpBlocks, false, nil
 }

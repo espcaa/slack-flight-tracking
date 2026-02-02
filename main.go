@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
+	"github.com/slack-go/slack"
 	_ "modernc.org/sqlite"
 )
 
@@ -33,8 +34,8 @@ func main() {
 	}
 
 	config := shared.Config{
-		SlackToken: slackToken,
-		Port:       port,
+		Port:        port,
+		SlackClient: slack.New(slackToken),
 	}
 
 	Start(config)

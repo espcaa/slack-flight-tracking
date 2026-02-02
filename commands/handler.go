@@ -32,10 +32,11 @@ func HandleCommand(name string, w http.ResponseWriter, r *http.Request, config s
 	go func(cmd slack.SlashCommand) {
 		var blocks []slack.Block
 		var in_channel bool = true
+		var after func() = nil
 
 		for _, command := range CommandList {
 			if command.Name == name {
-				blocks, in_channel = command.Execute(cmd.Text, cmd.ResponseURL, config)
+				blocks, in_channel, after = command.Execute(s, config)
 				break
 			}
 		}
@@ -55,6 +56,10 @@ func HandleCommand(name string, w http.ResponseWriter, r *http.Request, config s
 		err := slack.PostWebhook(cmd.ResponseURL, payload)
 		if err != nil {
 			log.Printf("failed to post to webhook: %v", err)
+		}
+
+		if after != nil {
+			after()
 		}
 	}(s)
 }

@@ -12,6 +12,6 @@ type Bot struct {
 }
 
 func (b *Bot) RunBot() {
-	log.Println("Bot is running with token: " + b.Config.SlackToken)
+	log.Println("Bot is runningggg")
 	// Bot logic here
 }

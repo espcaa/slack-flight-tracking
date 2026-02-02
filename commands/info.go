@@ -2,8 +2,10 @@ package commands
 
 import (
 	"flight-tracker-slack/flights"
+	"flight-tracker-slack/maps"
 	"flight-tracker-slack/shared"
 	"fmt"
+	"time"
 
 	"github.com/google/shlex"
 	"github.com/slack-go/slack"
@@ -16,10 +18,10 @@ var InfoCommand = shared.Command{
 	Execute:     FlightInfo,
 }
 
-func FlightInfo(commandText string, responseURL string, config shared.Config) ([]slack.Block, bool) {
+func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block, bool, func()) {
 	// get the arguments
 
-	args, err := shlex.Split(commandText)
+	args, err := shlex.Split(slashCommand.Text)
 	if err != nil || len(args) < 1 {
 		return []slack.Block{
 			slack.NewSectionBlock(
@@ -27,7 +29,7 @@ func FlightInfo(commandText string, responseURL string, config shared.Config) ([
 				nil,
 				nil,
 			),
-		}, false
+		}, false, nil
 	}
 
 	flightNumber := args[0]
@@ -48,7 +50,7 @@ func FlightInfo(commandText string, responseURL string, config shared.Config) ([
 				nil,
 				nil,
 			),
-		}, false
+		}, false, nil
 	}
 
 	// expand it
@@ -65,7 +67,7 @@ func FlightInfo(commandText string, responseURL string, config shared.Config) ([
 				nil,
 				nil,
 			),
-		}, false
+		}, false, nil
 	}
 
 	// fetch flight info
@@ -82,13 +84,26 @@ func FlightInfo(commandText string, responseURL string, config shared.Config) ([
 				nil,
 				nil,
 			),
-		}, false
+		}, false, nil
 	}
 
 	var fd flights.FlightDetail
 	for _, f := range flightInfo.Flights {
 		fd = f
 		break
+	}
+
+	// generate picture
+
+	picturePath, err := maps.GenerateMap(fd)
+
+	after := func() {
+		// upload the image to slack
+		config.SlackClient.UploadFileV2(slack.UploadFileV2Parameters{
+			Channel: slashCommand.ChannelID,
+			File:    picturePath,
+			Title:   fmt.Sprintf("%s - %s", flightNumber, time.Now().Format("2006-01-02")),
+		})
 	}
 
 	// build response blocks
@@ -129,5 +144,5 @@ func FlightInfo(commandText string, responseURL string, config shared.Config) ([
 		nil,
 	))
 
-	return blocks, true
+	return blocks, true, after
 }
