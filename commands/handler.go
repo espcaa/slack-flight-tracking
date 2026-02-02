@@ -31,23 +31,23 @@ func HandleCommand(name string, w http.ResponseWriter, r *http.Request, config s
 
 	go func(cmd slack.SlashCommand) {
 		var blocks []slack.Block
-		var in_channel bool = true
+		var inChannel bool = true
 		var after func() error = nil
 
 		for _, command := range CommandList {
 			if command.Name == name {
-				blocks, in_channel, after = command.Execute(s, config)
+				blocks, inChannel, after = command.Execute(s, config)
 				break
 			}
 		}
 
-		var response_type = slack.ResponseTypeInChannel
-		if !in_channel {
-			response_type = slack.ResponseTypeEphemeral
+		var responseType = slack.ResponseTypeInChannel
+		if !inChannel {
+			responseType = slack.ResponseTypeEphemeral
 		}
 
 		payload := &slack.WebhookMessage{
-			ResponseType: response_type,
+			ResponseType: responseType,
 			Blocks: &slack.Blocks{
 				BlockSet: blocks,
 			},

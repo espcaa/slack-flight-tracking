@@ -30,6 +30,8 @@ func Track(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block
 	var date string
 	var channel string
 
+	// this file is wip, ignore everything
+
 	_ = flightNumber
 	_ = date
 	_ = channel

@@ -84,5 +84,8 @@ func Start(config shared.Config) {
 
 	log.Println("Starting server on port " + config.Port)
 
-	http.ListenAndServe(":"+config.Port, r)
+	err = http.ListenAndServe(":"+config.Port, r)
+	if err != nil {
+		log.Fatal("Error starting server: " + err.Error())
+	}
 }

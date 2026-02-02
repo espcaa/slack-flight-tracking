@@ -62,9 +62,6 @@ func GetFlightInfo(flightNumber string) (FlightDataWrapper, error) {
 	if err != nil {
 		return FlightDataWrapper{}, err
 	}
-	for flightCode, flight := range flightData.Flights {
-		flight.Code = flightCode
-	}
 
 	return flightData, nil
 }
