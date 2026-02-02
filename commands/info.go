@@ -122,11 +122,19 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 		defer file.Close()
 		defer os.Remove(picturePath)
 
+		byteSize, err := file.Stat()
+		if err != nil {
+			return err
+		}
+
+		fileSize := byteSize.Size()
+
 		uploadResponse, err := config.SlackClient.UploadFileV2(slack.UploadFileV2Parameters{
 			Channel:  slashCommand.ChannelID,
 			File:     picturePath,
 			Filename: picturePath,
 			Reader:   file,
+			FileSize: int(fileSize),
 			Title:    fmt.Sprintf("%s - %s", flightNumber, time.Now().Format("2006-01-02")),
 		})
 		if err != nil {
