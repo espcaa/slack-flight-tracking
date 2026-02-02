@@ -16,6 +16,7 @@ func init() {
 		TrackCommand,
 		UntrackCommand,
 		HelpCommand,
+		FlightInfoCommand,
 	}
 }
 

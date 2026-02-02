@@ -9,7 +9,7 @@ import (
 	"github.com/slack-go/slack"
 )
 
-var FlightInfoCommand = shared.Command{
+var InfoCommand = shared.Command{
 	Name:        "flight-info",
 	Description: "Get information about a specific flight",
 	Usage:       "/flight-info [flight_number]",
