@@ -5,6 +5,7 @@ import (
 	"flight-tracker-slack/maps"
 	"flight-tracker-slack/shared"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/google/shlex"
@@ -113,10 +114,20 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 	}
 
 	after := func() error {
+
+		file, err := os.Open(picturePath)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		defer os.Remove(picturePath)
+
 		uploadResponse, err := config.SlackClient.UploadFileV2(slack.UploadFileV2Parameters{
-			Channel: slashCommand.ChannelID,
-			File:    picturePath,
-			Title:   fmt.Sprintf("%s - %s", flightNumber, time.Now().Format("2006-01-02")),
+			Channel:  slashCommand.ChannelID,
+			File:     picturePath,
+			Filename: picturePath,
+			Reader:   file,
+			Title:    fmt.Sprintf("%s - %s", flightNumber, time.Now().Format("2006-01-02")),
 		})
 		if err != nil {
 			return err
