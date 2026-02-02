@@ -13,7 +13,6 @@ var ListCommand = shared.Command{
 	Execute:     List,
 }
 
-func List(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block, bool, func()) {
-	// list logic here
+func List(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block, bool, func() error) {
 	return []slack.Block{}, true, nil
 }

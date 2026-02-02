@@ -43,8 +43,6 @@ func main() {
 
 func Start(config shared.Config) {
 
-	// load the db
-
 	db, err := sql.Open("sqlite", "./flights.db")
 	if err != nil {
 		log.Fatal("Error opening flights database: " + err.Error())
@@ -53,8 +51,6 @@ func Start(config shared.Config) {
 	log.Println("Connected to flights database")
 
 	config.UserDB = db
-
-	// start the http server
 
 	r := chi.NewRouter()
 
@@ -66,7 +62,6 @@ func Start(config shared.Config) {
 
 	r.Get("/commands/{name}", func(w http.ResponseWriter, r *http.Request) {
 		name := chi.URLParam(r, "name")
-		// log.Println("seems like you're trying to run the " + name + " command...")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("seems like you're trying to run the " + name + " command..."))
 	})
@@ -82,8 +77,6 @@ func Start(config shared.Config) {
 	})
 
 	log.Println("Starting server on port " + config.Port)
-
-	// commands endpoints
 
 	http.ListenAndServe(":"+config.Port, r)
 }

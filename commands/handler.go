@@ -32,7 +32,7 @@ func HandleCommand(name string, w http.ResponseWriter, r *http.Request, config s
 	go func(cmd slack.SlashCommand) {
 		var blocks []slack.Block
 		var in_channel bool = true
-		var after func() = nil
+		var after func() error = nil
 
 		for _, command := range CommandList {
 			if command.Name == name {

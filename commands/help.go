@@ -14,7 +14,7 @@ var HelpCommand = shared.Command{
 	Execute:     Help,
 }
 
-func Help(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block, bool, func()) {
+func Help(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block, bool, func() error) {
 	var specificCommand *shared.Command
 	var helpBlocks []slack.Block
 

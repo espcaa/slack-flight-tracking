@@ -14,14 +14,13 @@ import (
 )
 
 func GenerateMap(flight flights.FlightDetail) (string, error) {
-	// map generation logic here
 	ctx := sm.NewContext()
 	ctx.SetSize(1200, 900)
 	ctx.SetZoom(4)
 
 	lastTrackingPoint := flight.Track[len(flight.Track)-1]
-	lat := lastTrackingPoint.Coord[0]
-	lon := lastTrackingPoint.Coord[1]
+	lat := lastTrackingPoint.Coord[1]
+	lon := lastTrackingPoint.Coord[0]
 	aircraftPos := s2.LatLngFromDegrees(lat, lon)
 
 	osfile, err := os.Open("assets/plane.png")
@@ -55,6 +54,13 @@ func GenerateMap(flight flights.FlightDetail) (string, error) {
 	img, err := ctx.Render()
 	if err != nil {
 		return "", fmt.Errorf("failed to render map: %w", err)
+	}
+
+	if _, err := os.Stat("tmp"); os.IsNotExist(err) {
+		err := os.Mkdir("tmp", 0755)
+		if err != nil {
+			return "", fmt.Errorf("failed to create tmp directory: %w", err)
+		}
 	}
 
 	fileName := fmt.Sprintf("tmp/aircraft-map-%s.png", uuid.New().String())

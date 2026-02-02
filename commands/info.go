@@ -18,9 +18,7 @@ var InfoCommand = shared.Command{
 	Execute:     FlightInfo,
 }
 
-func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block, bool, func()) {
-	// get the arguments
-
+func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block, bool, func() error) {
 	args, err := shlex.Split(slashCommand.Text)
 	if err != nil || len(args) < 1 {
 		return []slack.Block{
@@ -33,10 +31,6 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 	}
 
 	flightNumber := args[0]
-
-	// number wizzardry here
-
-	// check if it's an iata or icao code
 
 	if !flights.FlightNumPattern.MatchString(flightNumber) {
 		return []slack.Block{
@@ -53,7 +47,6 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 		}, false, nil
 	}
 
-	// expand it
 	flightNumber, err = flights.ExpandFlightNumber(flightNumber)
 	if err != nil {
 		return []slack.Block{
@@ -70,7 +63,6 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 		}, false, nil
 	}
 
-	// fetch flight info
 	flightInfo, err := flights.GetFlightInfo(flightNumber)
 	if err != nil {
 		return []slack.Block{
@@ -93,20 +85,45 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 		break
 	}
 
-	// generate picture
+	if fd.Origin.Iata == "" {
+		return []slack.Block{
+			slack.NewSectionBlock(
+				slack.NewTextBlockObject(slack.MarkdownType, "No active flight found for that flight number :pensive:", false, false),
+				nil,
+				nil,
+			),
+		}, false, nil
+	}
 
 	picturePath, err := maps.GenerateMap(fd)
 
-	after := func() {
-		// upload the image to slack
-		config.SlackClient.UploadFileV2(slack.UploadFileV2Parameters{
+	if err != nil {
+		return []slack.Block{
+			slack.NewSectionBlock(
+				slack.NewTextBlockObject(slack.MarkdownType, "We were unable to generate the flight map :x:", false, false),
+				nil,
+				nil,
+			),
+			slack.NewSectionBlock(
+				slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("_Error details:_ ```%v```", err), false, false),
+				nil,
+				nil,
+			),
+		}, false, nil
+	}
+
+	after := func() error {
+		uploadResponse, err := config.SlackClient.UploadFileV2(slack.UploadFileV2Parameters{
 			Channel: slashCommand.ChannelID,
 			File:    picturePath,
 			Title:   fmt.Sprintf("%s - %s", flightNumber, time.Now().Format("2006-01-02")),
 		})
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Uploaded file: %+v\n", uploadResponse)
+		return nil
 	}
-
-	// build response blocks
 
 	airlineName := fd.Airline.FullName
 

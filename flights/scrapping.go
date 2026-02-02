@@ -24,10 +24,7 @@ func unixToTime(timestamp int64) time.Time {
 // regex to find the json data in the page
 var dataRegex = regexp.MustCompile(`trackpollBootstrap = (\{.*?\});`)
 
-// yay....
 func GetFlightInfo(flightNumber string) (FlightDataWrapper, error) {
-	// http client with a high timeout because it can be slow
-
 	client := &http.Client{
 		Timeout: 100 * time.Second,
 	}
@@ -35,7 +32,6 @@ func GetFlightInfo(flightNumber string) (FlightDataWrapper, error) {
 		"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
 	}
 
-	// just get the page with a normal request
 	req, err := http.NewRequest("GET", "https://fr.flightaware.com/live/flight/"+flightNumber, nil)
 	if err != nil {
 		return FlightDataWrapper{}, err
@@ -48,8 +44,6 @@ func GetFlightInfo(flightNumber string) (FlightDataWrapper, error) {
 		return FlightDataWrapper{}, err
 	}
 	defer resp.Body.Close()
-
-	// we can now parse the body to find the json data
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
