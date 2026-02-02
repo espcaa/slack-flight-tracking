@@ -1,7 +1,6 @@
 package flights
 
 import (
-	"regexp"
 	"time"
 )
 
@@ -74,7 +73,7 @@ type DistanceDetail struct {
 type GateTimes struct {
 	Actual    *int64 `json:"actual"`
 	Estimated *int64 `json:"estimated"`
-	Scheduled int64  `json:"scheduled"`
+	Scheduled *int64 `json:"scheduled"`
 }
 
 type FlightPlan struct {
@@ -110,21 +109,13 @@ func (g GateTimes) ToTime(t *int64) time.Time {
 
 func (fd *FlightDetail) GetSchedule() FlightSchedule {
 	return FlightSchedule{
-		DepartureScheduled: fd.GateDepartureTimes.ToTime(&fd.GateDepartureTimes.Scheduled),
+		DepartureScheduled: fd.GateDepartureTimes.ToTime(fd.GateDepartureTimes.Scheduled),
 		DepartureActual:    fd.GateDepartureTimes.ToTime(fd.GateDepartureTimes.Actual),
 		DepartureEstimated: fd.GateDepartureTimes.ToTime(fd.GateDepartureTimes.Estimated),
-		ArrivalScheduled:   fd.GateArrivalTimes.ToTime(&fd.GateArrivalTimes.Scheduled),
+		ArrivalScheduled:   fd.GateArrivalTimes.ToTime(fd.GateArrivalTimes.Scheduled),
 		ArrivalEstimated:   fd.GateArrivalTimes.ToTime(fd.GateArrivalTimes.Estimated),
 		ArrivalActual:      fd.GateArrivalTimes.ToTime(fd.GateArrivalTimes.Actual),
 	}
-}
-
-type ICAOFlightNumber string
-
-var ICAOFlightNumberRegex = regexp.MustCompile(`^[A-Z]{2}\d{2,4}$`)
-
-func (icao ICAOFlightNumber) IsValid() bool {
-	return ICAOFlightNumberRegex.MatchString(string(icao))
 }
 
 type AirlineDBRecord struct {

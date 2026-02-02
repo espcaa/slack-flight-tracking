@@ -21,8 +21,10 @@ func unixToTime(timestamp int64) time.Time {
 	return time.Unix(timestamp, 0).In(time.UTC)
 }
 
+// regex to find the json data in the page
 var dataRegex = regexp.MustCompile(`trackpollBootstrap = (\{.*?\});`)
 
+// yay....
 func GetFlightInfo(flightNumber string) (FlightDataWrapper, error) {
 	// http client with a high timeout because it can be slow
 
