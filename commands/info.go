@@ -104,6 +104,8 @@ func FlightInfo(commandText string, responseURL string, config shared.Config) ([
 	schedule := fd.GetSchedule()
 	departureScheduled := schedule.DepartureScheduled.Format("15:04") // HH:MM
 	arrivalScheduled := schedule.ArrivalScheduled.Format("15:04")
+	actualDeparture := schedule.DepartureActual.Format("15:04")
+	estimatedArrival := schedule.ArrivalEstimated.Format("15:04")
 
 	blocks := []slack.Block{}
 
@@ -116,8 +118,8 @@ func FlightInfo(commandText string, responseURL string, config shared.Config) ([
 
 	infoText := "*From:* " + origin + "\n" +
 		"*To:* " + destination + "\n" +
-		"*Scheduled Departure:* " + departureScheduled + "\n" +
-		"*Scheduled Arrival:* " + arrivalScheduled + "\n" +
+		"*Departure:* " + actualDeparture + " (scheduled: " + departureScheduled + ")\n" +
+		"*Arrival:* " + arrivalScheduled + " (estimated: " + estimatedArrival + ")\n" +
 		"*Altitude:* " + fmt.Sprintf("%d ft", altitude) + "\n" +
 		"*Speed:* " + fmt.Sprintf("%d knots", speed)
 
