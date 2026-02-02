@@ -9,6 +9,7 @@ type FlightDataWrapper struct {
 }
 
 type FlightDetail struct {
+	Code               string
 	Aircraft           AircraftDetail `json:"aircraft"`
 	Airline            AirlineDetail  `json:"airline"`
 	Altitude           int            `json:"altitude"`
@@ -50,13 +51,14 @@ type AirlineDetail struct {
 }
 
 type AirportDetail struct {
-	TZ               string `json:"TZ"`
-	FriendlyLocation string `json:"friendlyLocation"`
-	FriendlyName     string `json:"friendlyName"`
-	Gate             string `json:"gate"`
-	Iata             string `json:"iata"`
-	Icao             string `json:"icao"`
-	Terminal         string `json:"terminal"`
+	TZ               string     `json:"TZ"`
+	FriendlyLocation string     `json:"friendlyLocation"`
+	FriendlyName     string     `json:"friendlyName"`
+	Coordinates      [2]float64 `json:"coord"`
+	Gate             string     `json:"gate"`
+	Iata             string     `json:"iata"`
+	Icao             string     `json:"icao"`
+	Terminal         string     `json:"terminal"`
 	Delays           []struct {
 		Reason string `json:"reason"`
 		Time   string `json:"time"`

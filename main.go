@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"flight-tracker-slack/commands"
+	"flight-tracker-slack/maps"
 	"flight-tracker-slack/shared"
 	"log"
 	"net/http"
@@ -20,22 +21,27 @@ func main() {
 
 	err := godotenv.Load()
 	if err != nil {
-		log.Println("Error loading .env file")
+		log.Println("error loading .env file or file not found")
+	} else {
+		log.Println(".env file loaded")
 	}
-	log.Println("Loaded .env file")
-
 	port := os.Getenv("PORT")
 	if port == "" {
 		log.Fatal("PORT environment variable not set")
+	} else {
+		log.Println("running on port: " + port)
 	}
 	slackToken := os.Getenv("SLACK_BOT_TOKEN")
 	if slackToken == "" {
 		log.Fatal("SLACK_BOT_TOKEN environment variable not set")
 	}
 
+	tileStore := maps.NewTileStore("./data/map")
+
 	config := shared.Config{
 		Port:        port,
 		SlackClient: slack.New(slackToken),
+		TileStore:   tileStore,
 	}
 
 	Start(config)

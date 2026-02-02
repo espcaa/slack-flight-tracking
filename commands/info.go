@@ -96,7 +96,7 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 		}, false, nil
 	}
 
-	picturePath, err := maps.GenerateMap(fd)
+	picturePath, err := maps.GenerateMapFromFlightDetail(config.TileStore, fd)
 
 	if err != nil {
 		return []slack.Block{
