@@ -59,7 +59,30 @@ func HandleCommand(name string, w http.ResponseWriter, r *http.Request, config s
 		}
 
 		if after != nil {
-			after()
+			err = after()
+			if err != nil {
+				log.Printf("after function error: %v", err)
+				err = slack.PostWebhook(cmd.ResponseURL, &slack.WebhookMessage{
+					ResponseType: slack.ResponseTypeEphemeral,
+					Blocks: &slack.Blocks{
+						BlockSet: []slack.Block{
+							slack.NewSectionBlock(
+								slack.NewTextBlockObject(slack.MarkdownType, "Failed to execute the command entirely :x:", false, false),
+								nil,
+								nil,
+							),
+							slack.NewSectionBlock(
+								slack.NewTextBlockObject(slack.MarkdownType, "_Error details:_ ```"+err.Error()+"```", false, false),
+								nil,
+								nil,
+							),
+						},
+					},
+				})
+				if err != nil {
+					log.Printf("failed to post error message to webhook: %v", err)
+				}
+			}
 		}
 	}(s)
 }
