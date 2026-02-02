@@ -36,7 +36,7 @@ func FlightInfo(commandText string, responseURL string, config shared.Config) []
 
 	// check if it's an iata or icao code
 
-	if !flights.IcaoPattern.MatchString(flightNumber) && !flights.IataPattern.MatchString(flightNumber) {
+	if !flights.FlightNumPattern.MatchString(flightNumber) {
 		return []slack.Block{
 			slack.NewSectionBlock(
 				slack.NewTextBlockObject(slack.MarkdownType, "Invalid flight number format. Please provide a valid IATA or ICAO flight number.", false, false),
@@ -44,19 +44,18 @@ func FlightInfo(commandText string, responseURL string, config shared.Config) []
 				nil,
 			),
 		}
-	} else if flights.IataPattern.MatchString(flightNumber) {
-		// convert to icao
-		icao, err := flights.ExpandFlightNumber(flightNumber)
-		if err != nil {
-			return []slack.Block{
-				slack.NewSectionBlock(
-					slack.NewTextBlockObject(slack.MarkdownType, "Could not convert IATA to ICAO flight number.", false, false),
-					nil,
-					nil,
-				),
-			}
+	}
+
+	// expand it
+	flightNumber, err = flights.ExpandFlightNumber(flightNumber)
+	if err != nil {
+		return []slack.Block{
+			slack.NewSectionBlock(
+				slack.NewTextBlockObject(slack.MarkdownType, "Could not expand flight number. Please ensure the flight number is correct.", false, false),
+				nil,
+				nil,
+			),
 		}
-		flightNumber = icao
 	}
 
 	// fetch flight info
