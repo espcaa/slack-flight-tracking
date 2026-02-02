@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	_ "image/png"
 	"os"
 
 	sm "github.com/flopp/go-staticmaps"
@@ -13,61 +14,64 @@ import (
 	"github.com/google/uuid"
 )
 
+var planeIcon image.Image
+
+func init() {
+	f, err := os.Open("assets/plane.png")
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	planeIcon, _, _ = image.Decode(f)
+}
+
 func GenerateMap(flight flights.FlightDetail) (string, error) {
+	if len(flight.Track) == 0 {
+		return "", fmt.Errorf("no tracking data")
+	}
+
 	ctx := sm.NewContext()
 	ctx.SetSize(1200, 900)
 	ctx.SetZoom(4)
-
-	lastTrackingPoint := flight.Track[len(flight.Track)-1]
-	lat := lastTrackingPoint.Coord[1]
-	lon := lastTrackingPoint.Coord[0]
-	aircraftPos := s2.LatLngFromDegrees(lat, lon)
-
-	osfile, err := os.Open("assets/plane.png")
-	if err != nil {
-		return "", fmt.Errorf("failed to open plane image: %w", err)
-	}
-	defer osfile.Close()
-
-	imga, _, err := image.Decode(osfile)
-	if err != nil {
-		return "", fmt.Errorf("failed to decode plane image: %w", err)
-	}
-
-	heading := flight.Heading
-	tracks := flight.Track
-
-	dc := gg.NewContextForImage(imga)
-	dc.RotateAbout(gg.Radians(float64(heading)), float64(imga.Bounds().Dx()/2), float64(imga.Bounds().Dy()/2))
-	rotated := dc.Image()
 	ctx.OverrideAttribution("")
-	ctx.AddObject(sm.NewImageMarker(aircraftPos, rotated, 25/2, 25/2))
 
-	if len(tracks) > 1 {
-		pathPositions := make([]s2.LatLng, 0, len(tracks))
-		for _, t := range tracks {
-			pathPositions = append(pathPositions, s2.LatLngFromDegrees(t.Coord[1], t.Coord[0]))
+	lastPoint := flight.Track[len(flight.Track)-1]
+	aircraftPos := s2.LatLngFromDegrees(lastPoint.Coord[1], lastPoint.Coord[0])
+
+	var rotatedIcon image.Image
+	if planeIcon != nil {
+		w, h := planeIcon.Bounds().Dx(), planeIcon.Bounds().Dy()
+		maxDim := float64(w)
+		if h > w {
+			maxDim = float64(h)
 		}
-		ctx.AddObject(sm.NewPath(pathPositions, color.RGBA{221, 55, 255, 255}, 3.0))
+
+		dc := gg.NewContext(int(maxDim), int(maxDim))
+		fmt.Printf("Heading: %d\n", flight.Heading)
+		dc.RotateAbout(gg.Radians(float64(flight.Heading)+90), maxDim/2, maxDim/2)
+		dc.DrawImageAnchored(planeIcon, int(maxDim/2), int(maxDim/2), 0.5, 0.5)
+		rotatedIcon = dc.Image()
+	}
+
+	pathPositions := make([]s2.LatLng, len(flight.Track))
+	for i, t := range flight.Track {
+		pathPositions[i] = s2.LatLngFromDegrees(t.Coord[1], t.Coord[0])
+	}
+	ctx.AddObject(sm.NewPath(pathPositions, color.RGBA{235, 64, 52, 255}, 3.0))
+
+	if rotatedIcon != nil {
+		ctx.AddObject(sm.NewImageMarker(aircraftPos, rotatedIcon, 25, 25))
 	}
 
 	img, err := ctx.Render()
 	if err != nil {
-		return "", fmt.Errorf("failed to render map: %w", err)
+		return "", fmt.Errorf("failed to render: %w", err)
 	}
 
-	if _, err := os.Stat("tmp"); os.IsNotExist(err) {
-		err := os.Mkdir("tmp", 0755)
-		if err != nil {
-			return "", fmt.Errorf("failed to create tmp directory: %w", err)
-		}
+	if err := os.MkdirAll("tmp", 0755); err != nil {
+		return "", err
 	}
 
-	fileName := fmt.Sprintf("tmp/aircraft-map-%s.png", uuid.New().String())
-	if err := gg.SavePNG(fileName, img); err != nil {
-		return "", fmt.Errorf("failed to save map PNG: %w", err)
-	}
-
-	return fileName, nil
-
+	fileName := fmt.Sprintf("tmp/%s.png", uuid.New().String())
+	return fileName, gg.SavePNG(fileName, img)
 }
