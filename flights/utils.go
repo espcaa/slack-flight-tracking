@@ -17,7 +17,7 @@ var (
 
 // GetAirlinesDB opens a read-only connection to the airlines database
 func GetAirlinesDB() (*sql.DB, error) {
-	db, err := sql.Open("sqlite", "file:airlines.db?cache=shared&mode=ro")
+	db, err := sql.Open("sqlite", "file:data/airlines.db?cache=shared&mode=ro")
 	if err != nil {
 		return nil, err
 	}
