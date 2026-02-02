@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"encoding/json"
 	"flight-tracker-slack/shared"
 	"log"
 	"net/http"
@@ -27,20 +26,7 @@ func HandleCommand(name string, w http.ResponseWriter, r *http.Request, config s
 		return
 	}
 
-	params := &slack.Msg{
-		ResponseType: slack.ResponseTypeEphemeral,
-		Text:         "processing /" + name + " ...",
-	}
-
-	b, err := json.Marshal(params)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(b)
 
 	go func(cmd slack.SlashCommand) {
 		var blocks []slack.Block
