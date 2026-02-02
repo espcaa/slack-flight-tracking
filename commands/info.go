@@ -55,6 +55,11 @@ func FlightInfo(commandText string, responseURL string, config shared.Config) []
 				nil,
 				nil,
 			),
+			slack.NewSectionBlock(
+				slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("Error details: %v", err), false, false),
+				nil,
+				nil,
+			),
 		}
 	}
 
