@@ -1,21 +1,55 @@
 package commands
 
-import "github.com/slack-go/slack"
+import (
+	"flight-tracker-slack/shared"
 
-func Help() []slack.Block {
-	helpText := "*Available commands:*\n" +
-		"• `/track [flight_number]` - Track a flight\n" +
-		"• `/untrack [flight_number]` - Untrack a flight\n" +
-		"• `/list` - List all tracked flights\n" +
-		"• `/help` - Show this help message"
+	"github.com/google/shlex"
+	"github.com/slack-go/slack"
+)
 
-	sectionBlock := slack.NewSectionBlock(
-		slack.NewTextBlockObject(slack.MarkdownType, helpText, false, false),
-		nil,
-		nil,
-	)
+var HelpCommand = shared.Command{
+	Name:        "flights-help",
+	Description: "Show help information",
+	Usage:       "/help [command_name (optional)]",
+	Execute:     Help,
+}
 
-	return []slack.Block{
-		sectionBlock,
+func Help(commandText string, responseURL string, config shared.Config) []slack.Block {
+	var specificCommand *shared.Command
+	var helpBlocks []slack.Block
+
+	args, err := shlex.Split(commandText)
+	if err == nil && len(args) >= 1 {
+		commandName := args[0]
+		for _, cmd := range CommandList {
+			if cmd.Name == commandName {
+				specificCommand = &cmd
+				break
+			}
+		}
 	}
+
+	if specificCommand != nil {
+		helpText := "*/" + specificCommand.Name + "*\n" +
+			specificCommand.Description + "\n" +
+			"*Usage:* `" + specificCommand.Usage + "`"
+		helpBlocks = append(helpBlocks, slack.NewSectionBlock(
+			slack.NewTextBlockObject(slack.MarkdownType, helpText, false, false),
+			nil,
+			nil,
+		))
+	} else {
+		helpText := "*Available Commands:*\n"
+		for _, cmd := range CommandList {
+			helpText += "• */" + cmd.Name + "*: " + cmd.Description + "\n"
+		}
+		helpText += "\nType `/help [command_name]` for detailed info on a specific command."
+		helpBlocks = append(helpBlocks, slack.NewSectionBlock(
+			slack.NewTextBlockObject(slack.MarkdownType, helpText, false, false),
+			nil,
+			nil,
+		))
+	}
+
+	return helpBlocks
 }

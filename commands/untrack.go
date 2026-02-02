@@ -6,6 +6,13 @@ import (
 	"github.com/slack-go/slack"
 )
 
+var UntrackCommand = shared.Command{
+	Name:        "untrack-flight",
+	Description: "Untrack a flight",
+	Usage:       "/untrack-flight [flight_number] [channel (optional)]",
+	Execute:     Untrack,
+}
+
 func Untrack(commandText string, responseURL string, config shared.Config) []slack.Block {
 	// untrack logic here
 	return []slack.Block{}

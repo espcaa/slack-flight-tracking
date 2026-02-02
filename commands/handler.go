@@ -9,6 +9,17 @@ import (
 	"github.com/slack-go/slack"
 )
 
+var CommandList []shared.Command
+
+func init() {
+	CommandList = []shared.Command{
+		ListCommand,
+		TrackCommand,
+		UntrackCommand,
+		HelpCommand,
+	}
+}
+
 func HandleCommand(name string, w http.ResponseWriter, r *http.Request, config shared.Config) {
 	s, err := slack.SlashCommandParse(r)
 	if err != nil {
@@ -34,18 +45,11 @@ func HandleCommand(name string, w http.ResponseWriter, r *http.Request, config s
 	go func(cmd slack.SlashCommand) {
 		var blocks []slack.Block
 
-		switch name {
-		case "track":
-			blocks = Track(cmd.Text, cmd.ResponseURL, config)
-		case "help":
-			blocks = Help()
-		case "list":
-			blocks = List(cmd.Text, cmd.ResponseURL, config)
-		case "untrack":
-			blocks = Untrack(cmd.Text, cmd.ResponseURL, config)
-		default:
-			log.Println("Unknown command:", name)
-			return
+		for _, command := range CommandList {
+			if command.Name == name {
+				blocks = command.Execute(cmd.Text, cmd.ResponseURL, config)
+				break
+			}
 		}
 
 		payload := &slack.WebhookMessage{
