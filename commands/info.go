@@ -5,6 +5,7 @@ import (
 	"flight-tracker-slack/maps"
 	"flight-tracker-slack/shared"
 	"fmt"
+	"image/color"
 	"os"
 	"time"
 
@@ -20,6 +21,12 @@ var InfoCommand = shared.Command{
 }
 
 func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block, bool, func() error) {
+
+	// this is sent with the uploaded image
+	blocks := []slack.Block{}
+	// responseBlocks are sent immediatly as ephemeral message
+	responseBlocks := []slack.Block{}
+
 	args, err := shlex.Split(slashCommand.Text)
 	if err != nil || len(args) < 1 {
 		return []slack.Block{
@@ -96,7 +103,9 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 		}, false, nil
 	}
 
-	picturePath, err := maps.GenerateMapFromFlightDetail(config.TileStore, fd)
+	picturePath, err := maps.GenerateMapFromFlightDetail(config.TileStore, fd, maps.MapConfig{
+		OceanColor: color.RGBA{R: 255, G: 0, B: 0, A: 255}, LandColor: color.RGBA{R: 0, G: 255, B: 0, A: 255},
+	})
 
 	if err != nil {
 		return []slack.Block{
@@ -136,6 +145,9 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 			Reader:   file,
 			FileSize: int(fileSize),
 			Title:    fmt.Sprintf("%s - %s", flightNumber, time.Now().Format("2006-01-02")),
+			Blocks: slack.Blocks{
+				BlockSet: blocks,
+			},
 		})
 		if err != nil {
 			return err
@@ -158,8 +170,6 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 	actualDeparture := schedule.DepartureActual.Format("15:04")
 	estimatedArrival := schedule.ArrivalEstimated.Format("15:04")
 
-	blocks := []slack.Block{}
-
 	headerText := "*" + airlineName + " Flight " + flightNumber + "*"
 	blocks = append(blocks, slack.NewSectionBlock(
 		slack.NewTextBlockObject(slack.MarkdownType, headerText, false, false),
@@ -180,5 +190,11 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 		nil,
 	))
 
-	return blocks, true, after
+	responseBlocks = append(responseBlocks, slack.NewSectionBlock(
+		slack.NewTextBlockObject(slack.MarkdownType, "processing...", false, false),
+		nil,
+		nil,
+	))
+
+	return responseBlocks, false, after
 }

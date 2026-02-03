@@ -4,6 +4,7 @@ import (
 	"flight-tracker-slack/flights"
 	"fmt"
 	"image"
+	"image/color"
 	"image/draw"
 	"image/png"
 	"math"
@@ -13,6 +14,11 @@ import (
 	"github.com/fogleman/gg"
 	"github.com/google/uuid"
 )
+
+type MapConfig struct {
+	OceanColor color.Color
+	LandColor  color.Color
+}
 
 var planeIcon image.Image
 
@@ -103,7 +109,7 @@ func DrawCroppedMapPixels(store *TileStore, zoom int, x1, y1, x2, y2 float64) (*
 	return canvas, nil
 }
 
-func GenerateMapFromFlightDetail(store *TileStore, flightDetails flights.FlightDetail) (string, error) {
+func GenerateMapFromFlightDetail(store *TileStore, flightDetails flights.FlightDetail, mapConfig MapConfig) (string, error) {
 	zoom := 6
 
 	var lastTrackPoint flights.TrackPoint
@@ -163,6 +169,22 @@ func GenerateMapFromFlightDetail(store *TileStore, flightDetails flights.FlightD
 	canvas, err := DrawCroppedMapPixels(store, zoom, p1X, p1Y, p2X, p2Y)
 	if err != nil {
 		return "", err
+	}
+
+	imgSize := canvas.Bounds()
+
+	for y := imgSize.Min.Y; y < imgSize.Max.Y; y++ {
+		for x := imgSize.Min.X; x < imgSize.Max.X; x++ {
+			idx := canvas.PixOffset(x, y)
+			r := canvas.Pix[idx]
+			g := canvas.Pix[idx+1]
+			b := canvas.Pix[idx+2]
+			if r == 0 && g == 0 && b == 0 {
+				canvas.Set(x, y, mapConfig.LandColor)
+			} else if r == 255 && g == 255 && b == 255 {
+				canvas.Set(x, y, mapConfig.OceanColor)
+			}
+		}
 	}
 
 	// scaling thingies
