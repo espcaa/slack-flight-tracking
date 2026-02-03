@@ -237,25 +237,20 @@ func GenerateMapFromFlightDetail(store *TileStore, flightDetails flights.FlightD
 
 	base := math.Sqrt(imgW * imgH)
 
-	// draw text
 	dc := gg.NewContextForRGBA(canvas)
-	if err := dc.LoadFontFace("assets/figtree-heavy.ttf", base*0.035); err != nil {
-		return "", err
-	}
 
-	dc.SetRGB(1, 1, 1)
+	// draw the arrival & departure airports as circles
 
-	// draw the origin airport's IATA code at its location
+	airportColor := "#f5bac6"
 	originPix := LonLatToPixel(flightDetails.Origin.Coordinates[1], flightDetails.Origin.Coordinates[0], zoom)
-	originX := originPix.X - p1X
-	originY := originPix.Y - p1Y
-	dc.DrawStringAnchored(flightDetails.Origin.Iata, originX, originY-10, 0.5, 1)
+	dc.SetHexColor(airportColor)
+	dc.DrawCircle(originPix.X-p1X, originPix.Y-p1Y, base*0.01)
+	dc.Fill()
 
-	// draw the destination airport's IATA code at its location
 	destPix := LonLatToPixel(flightDetails.Destination.Coordinates[1], flightDetails.Destination.Coordinates[0], zoom)
-	destX := destPix.X - p1X
-	destY := destPix.Y - p1Y
-	dc.DrawStringAnchored(flightDetails.Destination.Iata, destX, destY-10, 0.5, 1)
+	dc.SetHexColor(airportColor)
+	dc.DrawCircle(destPix.X-p1X, destPix.Y-p1Y, base*0.01)
+	dc.Fill()
 
 	// draw the waypoints as a dashed line
 	if len(flightDetails.Waypoints) >= 2 {

@@ -153,8 +153,6 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 		return nil
 	}
 
-	airlineName := fd.Airline.FullName
-
 	origin := fd.Origin.FriendlyLocation
 	destination := fd.Destination.FriendlyLocation
 
@@ -167,24 +165,33 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 	actualDeparture := schedule.DepartureActual.Format("15:04")
 	estimatedArrival := schedule.ArrivalEstimated.Format("15:04")
 
-	headerText := "*" + airlineName + " Flight " + flightNumber + "*"
-	blocks = append(blocks, slack.NewSectionBlock(
-		slack.NewTextBlockObject(slack.MarkdownType, headerText, false, false),
-		nil,
-		nil,
+	headerText := "Flight " + flightNumber + " - " + time.Now().Format("2006-01-02")
+	blocks = append(blocks, slack.NewHeaderBlock(
+		slack.NewTextBlockObject(slack.PlainTextType, headerText, false, false),
 	))
 
 	infoText := "*From:* " + origin + "\n" +
 		"*To:* " + destination + "\n" +
 		"*Departure:* " + actualDeparture + " (scheduled: " + departureScheduled + ")\n" +
 		"*Arrival:* " + arrivalScheduled + " (estimated: " + estimatedArrival + ")\n" +
-		"*Altitude:* " + fmt.Sprintf("%d ft", altitude) + "\n" +
+		"*Altitude:* " + fmt.Sprintf("%d00 ft", altitude) + "\n" +
 		"*Speed:* " + fmt.Sprintf("%d knots", speed)
 
 	blocks = append(blocks, slack.NewSectionBlock(
 		slack.NewTextBlockObject(slack.MarkdownType, infoText, false, false),
 		nil,
-		nil,
+		slack.NewAccessory(
+			slack.NewImageBlockElement(
+				"https://www.flightaware.com/images/airline_logos/180px/"+fd.Airline.Icao+".png",
+				fd.Airline.FullName,
+			),
+		),
+	))
+
+	blocks = append(blocks, slack.NewDividerBlock())
+
+	blocks = append(blocks, slack.NewContextBlock("",
+		slack.NewTextBlockObject(slack.MarkdownType, fd.Aircraft.FriendlyType, false, false),
 	))
 
 	responseBlocks = append(responseBlocks, slack.NewSectionBlock(

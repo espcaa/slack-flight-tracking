@@ -32,7 +32,7 @@ func GetFlightInfo(flightNumber string) (FlightDataWrapper, error) {
 		"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
 	}
 
-	req, err := http.NewRequest("GET", "https://fr.flightaware.com/live/flight/"+flightNumber, nil)
+	req, err := http.NewRequest("GET", "https://flightaware.com/live/flight/"+flightNumber, nil)
 	if err != nil {
 		return FlightDataWrapper{}, err
 	}
