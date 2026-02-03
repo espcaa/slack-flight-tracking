@@ -26,6 +26,7 @@ type FlightDetail struct {
 	Heading            int            `json:"heading"`
 	Timestamp          int64          `json:"timestamp"`
 	Track              []TrackPoint   `json:"track"`
+	Waypoints          [][]float64    `json:"waypoints"`
 }
 
 type TrackPoint struct {

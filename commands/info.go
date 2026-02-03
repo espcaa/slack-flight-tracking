@@ -5,7 +5,6 @@ import (
 	"flight-tracker-slack/maps"
 	"flight-tracker-slack/shared"
 	"fmt"
-	"image/color"
 	"os"
 	"time"
 
@@ -103,9 +102,7 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 		}, false, nil
 	}
 
-	picturePath, err := maps.GenerateMapFromFlightDetail(config.TileStore, fd, maps.MapConfig{
-		OceanColor: color.RGBA{R: 255, G: 0, B: 0, A: 255}, LandColor: color.RGBA{R: 0, G: 255, B: 0, A: 255},
-	})
+	picturePath, err := maps.GenerateMapFromFlightDetail(config.TileStore, fd)
 
 	if err != nil {
 		return []slack.Block{

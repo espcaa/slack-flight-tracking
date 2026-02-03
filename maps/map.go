@@ -4,23 +4,18 @@ import (
 	"flight-tracker-slack/flights"
 	"fmt"
 	"image"
-	"image/color"
 	"image/draw"
-	"image/png"
+	"image/jpeg"
 	"math"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/fogleman/gg"
+	"github.com/fyne-io/oksvg"
 	"github.com/google/uuid"
+	"github.com/srwiley/rasterx"
 )
-
-type MapConfig struct {
-	OceanColor color.Color
-	LandColor  color.Color
-}
-
-var planeIcon image.Image
 
 type GlobalPixel struct {
 	X, Y float64
@@ -32,13 +27,60 @@ type TileStore struct {
 	basePath string
 }
 
+var planeColor string = "#99b8cc"
+var planeOutlineColor string = "#99b8cc"
+var planeIcon image.Image
+var planeIcons = make(map[string]image.Image)
+
 func init() {
-	f, err := os.Open("assets/plane.png")
+	// load everything from assets/planes into planeIcons
+	var dir, err = os.ReadDir("assets/planes")
+
 	if err != nil {
-		return
+		panic(err)
 	}
-	defer f.Close()
-	planeIcon, _, _ = image.Decode(f)
+	for _, entry := range dir {
+		if entry.IsDir() {
+			continue
+		}
+		// check if it's a .svg file
+		if entry.Name()[len(entry.Name())-4:] != ".svg" {
+			continue
+		}
+		filePath := "assets/planes/" + entry.Name()
+		f, err := os.Open(filePath)
+		if err != nil {
+			panic(err)
+		}
+		defer f.Close()
+
+		// now recolor the svg file's fill and stroke attributes
+		svgData, err := os.ReadFile(filePath)
+		if err != nil {
+			panic(err)
+		}
+		svgStr := string(svgData)
+
+		svg := strings.ReplaceAll(svgStr, "{{FILL}}", planeColor)
+		svg = strings.ReplaceAll(svg, "{{STROKE}}", planeOutlineColor)
+
+		// rasterize the svg to an image.Image
+		icon, err := oksvg.ReadIconStream(strings.NewReader(svg))
+		if err != nil {
+			panic(err)
+		}
+
+		size := 256
+		icon.SetTarget(0, 0, float64(size), float64(size))
+		img := image.NewRGBA(image.Rect(0, 0, size, size))
+
+		// Rasterize
+		scanner := rasterx.NewScannerGV(size, size, img, img.Bounds())
+		raster := rasterx.NewDasher(size, size, scanner)
+		icon.Draw(raster, 1.0)
+
+		planeIcons[entry.Name()[:len(entry.Name())-4]] = img
+	}
 }
 
 func NewTileStore(path string) *TileStore {
@@ -109,7 +151,7 @@ func DrawCroppedMapPixels(store *TileStore, zoom int, x1, y1, x2, y2 float64) (*
 	return canvas, nil
 }
 
-func GenerateMapFromFlightDetail(store *TileStore, flightDetails flights.FlightDetail, mapConfig MapConfig) (string, error) {
+func GenerateMapFromFlightDetail(store *TileStore, flightDetails flights.FlightDetail) (string, error) {
 	zoom := 6
 
 	var lastTrackPoint flights.TrackPoint
@@ -144,6 +186,23 @@ func GenerateMapFromFlightDetail(store *TileStore, flightDetails flights.FlightD
 			lastTrackPoint = tp
 		}
 	}
+	// do the same for waypoints
+	for _, wp := range flightDetails.Waypoints {
+		lon, lat := wp[0], wp[1]
+
+		if lat > rawTopLat {
+			rawTopLat = lat
+		}
+		if lat < rawBottomLat {
+			rawBottomLat = lat
+		}
+		if lon < rawLeftLon {
+			rawLeftLon = lon
+		}
+		if lon > rawRightLon {
+			rawRightLon = lon
+		}
+	}
 
 	dLat, dLon := flightDetails.Destination.Coordinates[1], flightDetails.Destination.Coordinates[0]
 	if dLat > rawTopLat {
@@ -169,22 +228,6 @@ func GenerateMapFromFlightDetail(store *TileStore, flightDetails flights.FlightD
 	canvas, err := DrawCroppedMapPixels(store, zoom, p1X, p1Y, p2X, p2Y)
 	if err != nil {
 		return "", err
-	}
-
-	imgSize := canvas.Bounds()
-
-	for y := imgSize.Min.Y; y < imgSize.Max.Y; y++ {
-		for x := imgSize.Min.X; x < imgSize.Max.X; x++ {
-			idx := canvas.PixOffset(x, y)
-			r := canvas.Pix[idx]
-			g := canvas.Pix[idx+1]
-			b := canvas.Pix[idx+2]
-			if r == 0 && g == 0 && b == 0 {
-				canvas.Set(x, y, mapConfig.LandColor)
-			} else if r == 255 && g == 255 && b == 255 {
-				canvas.Set(x, y, mapConfig.OceanColor)
-			}
-		}
 	}
 
 	// scaling thingies
@@ -214,11 +257,36 @@ func GenerateMapFromFlightDetail(store *TileStore, flightDetails flights.FlightD
 	destY := destPix.Y - p1Y
 	dc.DrawStringAnchored(flightDetails.Destination.Iata, destX, destY-10, 0.5, 1)
 
+	// draw the waypoints as a dashed line
+	if len(flightDetails.Waypoints) >= 2 {
+		dc.SetLineWidth(base * 0.003)
+		dc.SetDash(base*0.01, base*0.01)
+		dc.SetHexColor("#6b95b0")
+
+		// Move to the first point
+		first := flightDetails.Waypoints[0]
+		firstPix := LonLatToPixel(first[1], first[0], zoom)
+		dc.MoveTo(firstPix.X-p1X, firstPix.Y-p1Y)
+
+		// Add lines to the path
+		for i := 1; i < len(flightDetails.Waypoints); i++ {
+			curr := flightDetails.Waypoints[i]
+			currPix := LonLatToPixel(curr[1], curr[0], zoom)
+			dc.LineTo(currPix.X-p1X, currPix.Y-p1Y)
+		}
+
+		// Stroke ONCE here to apply the dash pattern across the whole path
+		dc.Stroke()
+
+		// Reset dash so it doesn't affect future drawing
+		dc.SetDash()
+	}
+
 	// draw the flight track from each track point
 	if len(flightDetails.Track) >= 2 {
 
 		dc.SetLineWidth(base * 0.006)
-		dc.SetHexColor("#fb4934")
+		dc.SetHexColor("#bbe1fa")
 		for i := 1; i < len(flightDetails.Track); i++ {
 			prev := flightDetails.Track[i-1]
 			curr := flightDetails.Track[i]
@@ -231,30 +299,40 @@ func GenerateMapFromFlightDetail(store *TileStore, flightDetails flights.FlightD
 
 	// draw the plane icon!
 
-	if planeIcon != nil {
-		planeSize := base * 0.045
-		planePix := LonLatToPixel(lastTrackPoint.Coord[1], lastTrackPoint.Coord[0], zoom)
-		planeX := planePix.X - p1X
-		planeY := planePix.Y - p1Y
-		iconW := float64(planeIcon.Bounds().Dx())
-		scale := planeSize / iconW
-
-		dc.Push()
-		dc.Translate(planeX, planeY)
-		dc.Rotate(gg.Radians(float64(flightDetails.Heading + 90)))
-		dc.Scale(scale, scale)
-		dc.DrawImageAnchored(planeIcon, 0, 0, 0.5, 0.5)
-		dc.Pop()
+	iconInfo, ok := TypeDesignatorIcons[flightDetails.Aircraft.Type]
+	if !ok {
+		iconInfo = TypeDesignatorIcon{Icon: "unknown", Scale: 1.0}
 	}
 
-	outputPath := fmt.Sprintf("flight_map_%s.png", uuid.New().String())
+	planeIcon, ok := planeIcons[iconInfo.Icon]
+	if !ok {
+		planeIcon = planeIcons["unknown"]
+	}
+
+	// size the plane icon relative to the image size
+
+	planeSize := base * 0.06 * iconInfo.Scale
+	planePix := LonLatToPixel(lastTrackPoint.Coord[1], lastTrackPoint.Coord[0], zoom)
+	planeX := planePix.X - p1X
+	planeY := planePix.Y - p1Y
+	iconW := float64(planeIcon.Bounds().Dx())
+	scale := planeSize / iconW
+
+	dc.Push()
+	dc.Translate(planeX, planeY)
+	dc.Rotate(gg.Radians(float64(flightDetails.Heading)))
+	dc.Scale(scale, scale)
+	dc.DrawImageAnchored(planeIcon, 0, 0, 0.5, 0.5)
+	dc.Pop()
+
+	outputPath := fmt.Sprintf("flight_map_%s.jpeg", uuid.New().String())
 	outFile, err := os.Create(outputPath)
 	if err != nil {
 		return "", err
 	}
 	defer outFile.Close()
 
-	if err := png.Encode(outFile, canvas); err != nil {
+	if err := jpeg.Encode(outFile, canvas, &jpeg.Options{Quality: 80}); err != nil {
 		return "", err
 	}
 
