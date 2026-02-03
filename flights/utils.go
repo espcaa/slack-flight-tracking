@@ -10,9 +10,9 @@ import (
 
 // Regex patterns for airline codes
 var (
-	IcaoPattern      = regexp.MustCompile(`^[A-Z]{3}$`)          // ICAO airline code (3 uppercase letters)
-	IataPattern      = regexp.MustCompile(`^[A-Z]{2}$`)          // IATA airline code (2 uppercase letters)
-	FlightNumPattern = regexp.MustCompile(`^[A-Z]{2,3}\d{1,4}$`) // full flight numbers like "AF102" or "AFR102"
+	IcaoPattern      = regexp.MustCompile(`^[A-Z]{3}$`)                // ICAO airline code (3 uppercase letters)
+	IataPattern      = regexp.MustCompile(`^[A-Z]{2}$`)                // IATA airline code (2 uppercase letters)
+	FlightNumPattern = regexp.MustCompile(`^[A-Z]{2,3}\d{1,4}[A-Z]?$`) // Flight number pattern (e.g., "AA100", "DLH400A"
 )
 
 var db *sql.DB
@@ -88,7 +88,7 @@ func AirlineCodeToICAO(db *sql.DB, code string) (string, error) {
 func ExpandFlightNumber(flight string) (string, error) {
 
 	// Regex to split letters vs digits
-	var flightParts = regexp.MustCompile(`^([A-Z]{2,3})(\d{1,4})$`)
+	var flightParts = regexp.MustCompile(`^([A-Z]{2,3})(\d{1,4}[A-Z]?)$`)
 	matches := flightParts.FindStringSubmatch(flight)
 	if matches == nil {
 		return "", errors.New("invalid flight number format")

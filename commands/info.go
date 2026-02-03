@@ -6,6 +6,7 @@ import (
 	"flight-tracker-slack/shared"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/google/shlex"
@@ -38,6 +39,9 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 	}
 
 	flightNumber := args[0]
+
+	// capitalize flight number
+	flightNumber = strings.ToUpper(flightNumber)
 
 	if !flights.FlightNumPattern.MatchString(flightNumber) {
 		return []slack.Block{
