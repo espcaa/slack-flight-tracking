@@ -1,3 +1,4 @@
 flights.db
 .env
 tmp/
+data/userdata.db

@@ -1,0 +1,10 @@
+services:
+  flight-bot:
+    build: .
+    ports:
+      - 3333:3000
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/data

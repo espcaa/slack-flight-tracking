@@ -27,7 +27,7 @@ func main() {
 	}
 	port := os.Getenv("PORT")
 	if port == "" {
-		log.Fatal("PORT environment variable not set")
+		port = "3000"
 	} else {
 		log.Println("running on port: " + port)
 	}
@@ -46,6 +46,7 @@ func main() {
 	config := shared.Config{
 		Port:          port,
 		SlackClient:   slack.New(slackToken),
+		SlackToken:    slackToken,
 		TileStore:     tileStore,
 		SigningSecret: slackSigningSecret,
 	}
@@ -55,12 +56,16 @@ func main() {
 
 func Start(config shared.Config) {
 
-	db, err := sql.Open("sqlite", "./flights.db")
+	db, err := sql.Open("sqlite", "file:data/userdata.db?mode=rwc")
 	if err != nil {
 		log.Fatal("Error opening flights database: " + err.Error())
 	}
 	defer db.Close()
-	log.Println("Connected to flights database")
+	if err := db.Ping(); err != nil {
+		log.Fatal("DB ping failed: " + err.Error())
+	} else {
+		log.Println("Connected to the db!")
+	}
 
 	config.UserDB = db
 
@@ -70,6 +75,16 @@ func Start(config shared.Config) {
 		name := chi.URLParam(r, "name")
 		log.Println("Received command: " + name)
 		commands.HandleCommand(name, w, r, config)
+	})
+
+	// interactivity
+
+	r.Post("/slack/interactivity", func(w http.ResponseWriter, r *http.Request) {
+		// print all the data we can get
+		r.ParseForm()
+		log.Println("Received interactivity payload: " + r.FormValue("payload"))
+		// acknowledge receipt
+		w.WriteHeader(http.StatusOK)
 	})
 
 	r.Get("/commands/{name}", func(w http.ResponseWriter, r *http.Request) {
@@ -93,5 +108,34 @@ func Start(config shared.Config) {
 	err = http.ListenAndServe(":"+config.Port, r)
 	if err != nil {
 		log.Fatal("Error starting server: " + err.Error())
+	}
+
+	LogicLoop := LogicLoop{
+		Config: config,
+	}
+	go LogicLoop.Run()
+}
+
+func setupDatabase(db *sql.DB) {
+	schema := `
+    CREATE TABLE IF NOT EXISTS flights (
+        id TEXT PRIMARY KEY,
+        slack_channel TEXT,
+        status TEXT,
+        is_airborne INTEGER DEFAULT 0,
+        scheduled_dep INTEGER,
+        current_eta INTEGER,
+        last_periodic_update INTEGER DEFAULT 0,
+        is_completed INTEGER DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS alerts_sent (
+        flight_id TEXT,
+        alert_type TEXT,
+        PRIMARY KEY (flight_id, alert_type)
+    );`
+
+	_, err := db.Exec(schema)
+	if err != nil {
+		log.Fatal("Could not create tables:", err)
 	}
 }

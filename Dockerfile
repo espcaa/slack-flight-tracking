@@ -9,4 +9,5 @@ RUN go build -o slackbot main.go
 FROM alpine:3.18
 RUN apk add --no-cache ca-certificates
 COPY --from=builder /app/slackbot .
+COPY --from=builder /app/assets ./assets
 ENTRYPOINT ["./slackbot"]

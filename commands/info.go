@@ -4,12 +4,13 @@ import (
 	"flight-tracker-slack/flights"
 	"flight-tracker-slack/maps"
 	"flight-tracker-slack/shared"
+	slackutils "flight-tracker-slack/slack-utils"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/google/shlex"
+	"github.com/google/uuid"
 	"github.com/slack-go/slack"
 )
 
@@ -20,12 +21,9 @@ var InfoCommand = shared.Command{
 	Execute:     FlightInfo,
 }
 
-func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block, bool, func() error) {
+func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block, bool, func(responseURL string) error) {
 
-	// this is sent with the uploaded image
 	blocks := []slack.Block{}
-	// responseBlocks are sent immediatly as ephemeral message
-	responseBlocks := []slack.Block{}
 
 	args, err := shlex.Split(slashCommand.Text)
 	if err != nil || len(args) < 1 {
@@ -39,9 +37,6 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 	}
 
 	flightNumber := args[0]
-
-	// capitalize flight number
-	flightNumber = strings.ToUpper(flightNumber)
 
 	if !flights.FlightNumPattern.MatchString(flightNumber) {
 		return []slack.Block{
@@ -58,36 +53,9 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 		}, false, nil
 	}
 
-	flightNumber, err = flights.ExpandFlightNumber(flightNumber)
-	if err != nil {
-		return []slack.Block{
-			slack.NewSectionBlock(
-				slack.NewTextBlockObject(slack.MarkdownType, "Could not expand flight number :x:", false, false),
-				nil,
-				nil,
-			),
-			slack.NewSectionBlock(
-				slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("_Error details:_ ```%v```", err), false, false),
-				nil,
-				nil,
-			),
-		}, false, nil
-	}
-
 	flightInfo, err := flights.GetFlightInfo(flightNumber)
 	if err != nil {
-		return []slack.Block{
-			slack.NewSectionBlock(
-				slack.NewTextBlockObject(slack.MarkdownType, "We were unable to retrieve information for that flight :x:", false, false),
-				nil,
-				nil,
-			),
-			slack.NewSectionBlock(
-				slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("_Error details:_ ```%v```", err), false, false),
-				nil,
-				nil,
-			),
-		}, false, nil
+		return NewErrorBlocks(err), false, nil
 	}
 
 	var fd flights.FlightDetail
@@ -123,38 +91,30 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 		}, false, nil
 	}
 
-	after := func() error {
+	file, err := os.Open(picturePath)
+	if err != nil {
+		return NewErrorBlocks(err), false, nil
+	}
+	defer file.Close()
+	defer os.Remove(picturePath)
 
-		file, err := os.Open(picturePath)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
-		defer os.Remove(picturePath)
+	byteSize, err := file.Stat()
+	if err != nil {
+		return NewErrorBlocks(err), false, nil
+	}
 
-		byteSize, err := file.Stat()
-		if err != nil {
-			return err
-		}
+	fileSize := byteSize.Size()
 
-		fileSize := byteSize.Size()
-
-		uploadResponse, err := config.SlackClient.UploadFileV2(slack.UploadFileV2Parameters{
-			Channel:  slashCommand.ChannelID,
-			File:     picturePath,
-			Filename: picturePath,
-			Reader:   file,
-			FileSize: int(fileSize),
-			Title:    fmt.Sprintf("%s - %s", flightNumber, time.Now().Format("2006-01-02")),
-			Blocks: slack.Blocks{
-				BlockSet: blocks,
-			},
-		})
-		if err != nil {
-			return err
-		}
-		fmt.Printf("Uploaded file: %+v\n", uploadResponse)
-		return nil
+	image, err := slackutils.UploadFileAndGetURL(slack.UploadFileV2Parameters{
+		File:     picturePath,
+		Filename: picturePath,
+		Reader:   file,
+		Channel:  slashCommand.ChannelID,
+		FileSize: int(fileSize),
+		Title:    fmt.Sprintf("%s - %s", flightNumber, time.Now().Format("2006-01-02")),
+	}, config.SlackClient, config.SlackToken)
+	if err != nil {
+		return NewErrorBlocks(err), false, nil
 	}
 
 	origin := fd.Origin.FriendlyLocation
@@ -179,7 +139,8 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 		"*Departure:* " + actualDeparture + " (scheduled: " + departureScheduled + ")\n" +
 		"*Arrival:* " + arrivalScheduled + " (estimated: " + estimatedArrival + ")\n" +
 		"*Altitude:* " + fmt.Sprintf("%d00 ft", altitude) + "\n" +
-		"*Speed:* " + fmt.Sprintf("%d knots", speed)
+		"*Speed:* " + fmt.Sprintf("%d knots", speed) + "\n" +
+		"*Gate:* " + fmt.Sprintf("%s → %s", fd.Origin.Gate, fd.Destination.Gate)
 
 	blocks = append(blocks, slack.NewSectionBlock(
 		slack.NewTextBlockObject(slack.MarkdownType, infoText, false, false),
@@ -198,11 +159,11 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 		slack.NewTextBlockObject(slack.MarkdownType, fd.Aircraft.FriendlyType, false, false),
 	))
 
-	responseBlocks = append(responseBlocks, slack.NewSectionBlock(
-		slack.NewTextBlockObject(slack.MarkdownType, "processing...", false, false),
-		nil,
-		nil,
+	blocks = append(blocks, slack.NewFileBlock(
+		uuid.New().String(),
+		image.ID,
+		"Flight Path Map",
 	))
 
-	return responseBlocks, false, after
+	return blocks, false, nil
 }

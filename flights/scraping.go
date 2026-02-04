@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -25,8 +26,20 @@ func unixToTime(timestamp int64) time.Time {
 var dataRegex = regexp.MustCompile(`trackpollBootstrap = (\{.*?\});`)
 
 func GetFlightInfo(flightNumber string) (FlightDataWrapper, error) {
+
+	// capitalize the flight number
+
+	strings.ToUpper(flightNumber)
+
+	// expand to full flight number if needed
+
+	flightNumber, err := ExpandFlightNumber(flightNumber)
+	if err != nil {
+		return FlightDataWrapper{}, err
+	}
+
 	client := &http.Client{
-		Timeout: 100 * time.Second,
+		Timeout: 10 * time.Second,
 	}
 	headers := map[string]string{
 		"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",

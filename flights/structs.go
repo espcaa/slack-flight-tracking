@@ -131,3 +131,10 @@ type AirlineDBRecord struct {
 	Country   string
 	Active    string
 }
+
+func (f *FlightDataWrapper) GetFirstFlight() *FlightDetail {
+	for _, flight := range f.Flights {
+		return &flight
+	}
+	return nil
+}
