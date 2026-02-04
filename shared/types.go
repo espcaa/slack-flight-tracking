@@ -21,7 +21,7 @@ type Command struct {
 	Name        string
 	Description string
 	Usage       string
-	Execute     func(slashCommand slack.SlashCommand, config Config) (blocks []slack.Block, inChannel bool, after func(responseUrl string) error)
+	Execute     func(slashCommand slack.SlashCommand, config Config) (blocks []slack.Block, inChannel bool, after func() error)
 }
 
 type FlightTrack struct {

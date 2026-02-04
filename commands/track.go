@@ -15,7 +15,7 @@ var TrackCommand = shared.Command{
 	Execute:     Track,
 }
 
-func Track(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block, bool, func(responseURL string) error) {
+func Track(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block, bool, func() error) {
 	args, err := shlex.Split(slashCommand.Text)
 	if err != nil || len(args) < 1 {
 		return []slack.Block{

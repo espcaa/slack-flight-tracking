@@ -4,13 +4,11 @@ import (
 	"flight-tracker-slack/flights"
 	"flight-tracker-slack/maps"
 	"flight-tracker-slack/shared"
-	slackutils "flight-tracker-slack/slack-utils"
 	"fmt"
 	"os"
 	"time"
 
 	"github.com/google/shlex"
-	"github.com/google/uuid"
 	"github.com/slack-go/slack"
 )
 
@@ -21,9 +19,16 @@ var InfoCommand = shared.Command{
 	Execute:     FlightInfo,
 }
 
-func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block, bool, func(responseURL string) error) {
+func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block, bool, func() error) {
 
 	blocks := []slack.Block{}
+	instantBlocks := []slack.Block{}
+
+	instantBlocks = append(instantBlocks, slack.NewSectionBlock(
+		slack.NewTextBlockObject(slack.MarkdownType, ":mag_right: I'm on it! (generating the map...)", false, false),
+		nil,
+		nil,
+	))
 
 	args, err := shlex.Split(slashCommand.Text)
 	if err != nil || len(args) < 1 {
@@ -91,30 +96,38 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 		}, false, nil
 	}
 
-	file, err := os.Open(picturePath)
-	if err != nil {
-		return NewErrorBlocks(err), false, nil
-	}
-	defer file.Close()
-	defer os.Remove(picturePath)
+	after := func() error {
 
-	byteSize, err := file.Stat()
-	if err != nil {
-		return NewErrorBlocks(err), false, nil
-	}
+		file, err := os.Open(picturePath)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		defer os.Remove(picturePath)
 
-	fileSize := byteSize.Size()
+		byteSize, err := file.Stat()
+		if err != nil {
+			return err
+		}
 
-	image, err := slackutils.UploadFileAndGetURL(slack.UploadFileV2Parameters{
-		File:     picturePath,
-		Filename: picturePath,
-		Reader:   file,
-		Channel:  slashCommand.ChannelID,
-		FileSize: int(fileSize),
-		Title:    fmt.Sprintf("%s - %s", flightNumber, time.Now().Format("2006-01-02")),
-	}, config.SlackClient, config.SlackToken)
-	if err != nil {
-		return NewErrorBlocks(err), false, nil
+		fileSize := byteSize.Size()
+
+		uploadResponse, err := config.SlackClient.UploadFileV2(slack.UploadFileV2Parameters{
+			Channel:  slashCommand.ChannelID,
+			File:     picturePath,
+			Filename: picturePath,
+			Reader:   file,
+			FileSize: int(fileSize),
+			Title:    fmt.Sprintf("%s - %s", flightNumber, time.Now().Format("2006-01-02")),
+			Blocks: slack.Blocks{
+				BlockSet: blocks,
+			},
+		})
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Uploaded file: %+v\n", uploadResponse)
+		return nil
 	}
 
 	origin := fd.Origin.FriendlyLocation
@@ -159,11 +172,5 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 		slack.NewTextBlockObject(slack.MarkdownType, fd.Aircraft.FriendlyType, false, false),
 	))
 
-	blocks = append(blocks, slack.NewFileBlock(
-		uuid.New().String(),
-		image.ID,
-		"Flight Path Map",
-	))
-
-	return blocks, false, nil
+	return instantBlocks, false, after
 }
