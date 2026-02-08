@@ -5,15 +5,14 @@ import (
 	"fmt"
 	"image"
 	"image/draw"
-	"image/jpeg"
 	"math"
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/fogleman/gg"
 	"github.com/fyne-io/oksvg"
-	"github.com/google/uuid"
 	"github.com/srwiley/rasterx"
 )
 
@@ -151,7 +150,8 @@ func DrawCroppedMapPixels(store *TileStore, zoom int, x1, y1, x2, y2 float64) (*
 	return canvas, nil
 }
 
-func GenerateMapFromFlightDetail(store *TileStore, flightDetails flights.FlightDetail) (string, error) {
+func GenerateMapFromFlightDetail(store *TileStore, flightDetails flights.FlightDetail) (*image.RGBA, error) {
+	start := time.Now()
 	zoom := 6
 
 	var lastTrackPoint flights.TrackPoint
@@ -227,7 +227,7 @@ func GenerateMapFromFlightDetail(store *TileStore, flightDetails flights.FlightD
 
 	canvas, err := DrawCroppedMapPixels(store, zoom, p1X, p1Y, p2X, p2Y)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// scaling thingies
@@ -320,16 +320,8 @@ func GenerateMapFromFlightDetail(store *TileStore, flightDetails flights.FlightD
 	dc.DrawImageAnchored(planeIcon, 0, 0, 0.5, 0.5)
 	dc.Pop()
 
-	outputPath := fmt.Sprintf("flight_map_%s.jpeg", uuid.New().String())
-	outFile, err := os.Create(outputPath)
-	if err != nil {
-		return "", err
-	}
-	defer outFile.Close()
+	duration := time.Since(start)
+	fmt.Printf("Map generation took: %s\n", duration)
 
-	if err := jpeg.Encode(outFile, canvas, &jpeg.Options{Quality: 80}); err != nil {
-		return "", err
-	}
-
-	return outputPath, nil
+	return canvas, nil
 }

@@ -3,9 +3,11 @@ package main
 import (
 	"database/sql"
 	"flight-tracker-slack/commands"
+	"flight-tracker-slack/flights"
 	"flight-tracker-slack/interactivity"
 	"flight-tracker-slack/maps"
 	"flight-tracker-slack/shared"
+	"image/jpeg"
 	"log"
 	"net/http"
 	"os"
@@ -99,6 +101,36 @@ func Start(config shared.Config) {
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("haiii"))
+	})
+
+	r.Get("/map/{flightID}", func(w http.ResponseWriter, r *http.Request) {
+		flightID := chi.URLParam(r, "flightID")
+
+		flightDetails, err := flights.GetFlightInfo(flightID)
+		if err != nil {
+			http.Error(w, "Flight not found", http.StatusNotFound)
+			return
+		}
+
+		var flight flights.FlightDetail
+		for _, f := range flightDetails.Flights {
+			flight = f
+			break
+		}
+
+		img, err := maps.GenerateMapFromFlightDetail(config.TileStore, flight)
+		if err != nil {
+			http.Error(w, "Failed to generate map", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.Header().Set("Cache-Control", "public, max-age=300")
+
+		err = jpeg.Encode(w, img, &jpeg.Options{Quality: 80})
+		if err != nil {
+			log.Println("Error encoding JPEG:", err)
+		}
 	})
 
 	log.Println("Starting server on port " + config.Port)

@@ -1,11 +1,12 @@
 package commands
 
 import (
+	"bytes"
 	"flight-tracker-slack/flights"
 	"flight-tracker-slack/maps"
 	"flight-tracker-slack/shared"
 	"fmt"
-	"os"
+	"image/png"
 	"time"
 
 	"github.com/google/shlex"
@@ -79,7 +80,7 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 		}, false, nil
 	}
 
-	picturePath, err := maps.GenerateMapFromFlightDetail(config.TileStore, fd)
+	image, err := maps.GenerateMapFromFlightDetail(config.TileStore, fd)
 
 	if err != nil {
 		return []slack.Block{
@@ -98,26 +99,16 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 
 	after := func() error {
 
-		file, err := os.Open(picturePath)
-		if err != nil {
-			return err
+		var buf bytes.Buffer
+		if err := png.Encode(&buf, image); err != nil {
+			return fmt.Errorf("failed to encode image: %w", err)
 		}
-		defer file.Close()
-		defer os.Remove(picturePath)
-
-		byteSize, err := file.Stat()
-		if err != nil {
-			return err
-		}
-
-		fileSize := byteSize.Size()
 
 		uploadResponse, err := config.SlackClient.UploadFileV2(slack.UploadFileV2Parameters{
 			Channel:  slashCommand.ChannelID,
-			File:     picturePath,
-			Filename: picturePath,
-			Reader:   file,
-			FileSize: int(fileSize),
+			Filename: "flight_map.png",
+			Reader:   &buf,
+			FileSize: buf.Len(),
 			Title:    fmt.Sprintf("%s - %s", flightNumber, time.Now().Format("2006-01-02")),
 			Blocks: slack.Blocks{
 				BlockSet: blocks,
