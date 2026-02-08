@@ -21,13 +21,23 @@ func HandleUntrackInteraction(payload slack.InteractionCallback, config shared.C
 	flightNumber := args[1]
 	user := payload.User.ID
 
-	flight, err := shared.FindFlight(flightNumber, channel, user, config)
+	filter := shared.FlightFilter{
+		FlightNumber: flightNumber,
+		SlackChannel: channel,
+		SlackUserID:  user,
+	}
+
+	flight, err := shared.GetFlights(filter, config)
 	if err != nil {
 		config.SlackClient.PostEphemeral(payload.Channel.ID, payload.User.ID, slack.MsgOptionBlocks(shared.NewErrorBlocks(err)...))
 		return
 	}
+	if len(flight) == 0 {
+		config.SlackClient.PostEphemeral(payload.Channel.ID, payload.User.ID, slack.MsgOptionBlocks(shared.NewErrorBlocks(fmt.Errorf("No tracked flight found for flight number %s in channel <#%s>.", flightNumber, channel))...))
+		return
+	}
 
-	err = shared.UntrackFlight(flight.ID, config)
+	err = shared.UntrackFlight(flight[0].ID, config)
 	if err != nil {
 		config.SlackClient.PostEphemeral(payload.Channel.ID, payload.User.ID, slack.MsgOptionBlocks(shared.NewErrorBlocks(err)...))
 		return

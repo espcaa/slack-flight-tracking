@@ -14,7 +14,10 @@ var ListCommand = shared.Command{
 }
 
 func List(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block, bool, func() error) {
-	var flightData, err = shared.ListFlightsByUser(slashCommand.UserID, config)
+	var filter = shared.FlightFilter{
+		SlackUserID: slashCommand.UserID,
+	}
+	var flightData, err = shared.GetFlights(filter, config)
 	if err != nil {
 		return shared.NewErrorBlocks(err), false, nil
 	}

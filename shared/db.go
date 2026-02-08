@@ -17,8 +17,40 @@ func GetFlight(id string, config Config) (*Flight, error) {
 	return &f, nil
 }
 
-func ListFlightsByUser(userID string, config Config) ([]Flight, error) {
-	rows, err := config.UserDB.Query("SELECT id, flight_number, slack_channel, slack_user_id, departure FROM flights WHERE slack_user_id=$1", userID)
+func UntrackFlight(id string, config Config) error {
+	_, err := config.UserDB.Exec("DELETE FROM flights WHERE id=$1", id)
+	return err
+}
+
+type FlightFilter struct {
+	ID           string
+	FlightNumber string
+	SlackChannel string
+	SlackUserID  string
+}
+
+func GetFlights(filter FlightFilter, config Config) ([]Flight, error) {
+	query := "SELECT id, flight_number, slack_channel, slack_user_id, departure FROM flights WHERE 1=1"
+	args := []any{}
+
+	if filter.ID != "" {
+		query += " AND id = ?"
+		args = append(args, filter.ID)
+	}
+	if filter.FlightNumber != "" {
+		query += " AND flight_number = ?"
+		args = append(args, filter.FlightNumber)
+	}
+	if filter.SlackChannel != "" {
+		query += " AND slack_channel = ?"
+		args = append(args, filter.SlackChannel)
+	}
+	if filter.SlackUserID != "" {
+		query += " AND slack_user_id = ?"
+		args = append(args, filter.SlackUserID)
+	}
+
+	rows, err := config.UserDB.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -34,20 +66,4 @@ func ListFlightsByUser(userID string, config Config) ([]Flight, error) {
 		flights = append(flights, f)
 	}
 	return flights, nil
-}
-
-func UntrackFlight(id string, config Config) error {
-	_, err := config.UserDB.Exec("DELETE FROM flights WHERE id=$1", id)
-	return err
-}
-
-func FindFlight(flightNumber, slackChannel, slackUserID string, config Config) (*Flight, error) {
-	row := config.UserDB.QueryRow("SELECT id, flight_number, slack_channel, slack_user_id, departure FROM flights WHERE flight_number=$1 AND slack_channel=$2 AND slack_user_id=$3", flightNumber, slackChannel, slackUserID)
-
-	var f Flight
-	err := row.Scan(&f.ID, &f.FlightNumber, &f.SlackChannel, &f.SlackUserID, &f.Departure)
-	if err != nil {
-		return nil, err
-	}
-	return &f, nil
 }
