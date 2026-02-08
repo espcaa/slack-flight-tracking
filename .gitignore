@@ -2,3 +2,4 @@ flights.db
 .env
 tmp/
 data/userdata.db
+.DS_Store
