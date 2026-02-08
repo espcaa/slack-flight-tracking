@@ -5,10 +5,17 @@ import (
 	"encoding/json"
 	"flight-tracker-slack/shared"
 	"io"
+	"log"
 	"net/http"
+	"strings"
 
 	"github.com/slack-go/slack"
 )
+
+var InteractionList []shared.Interaction = []shared.Interaction{
+	TrackInteraction,
+	UntrackInteraction,
+}
 
 func HandleInteraction(w http.ResponseWriter, r *http.Request, config shared.Config) {
 	// verify the request
@@ -35,20 +42,32 @@ func HandleInteraction(w http.ResponseWriter, r *http.Request, config shared.Con
 	r.Body = io.NopCloser(bytes.NewBuffer(body))
 
 	// now parse the payload
-
-	var payload slack.InteractionCallback
-	err = json.Unmarshal(body, &payload)
+	err = r.ParseForm()
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	payloadJSON := r.PostForm.Get("payload")
+	println("Received interaction payload:", payloadJSON)
+
+	var payload slack.InteractionCallback
+	err = json.Unmarshal([]byte(payloadJSON), &payload)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println("Error unmarshaling interaction payload:", err)
 		return
 	}
 
 	switch payload.Type {
 	case slack.InteractionTypeBlockActions:
-		// handle block actions
-
-	case slack.InteractionTypeViewSubmission:
-		// for now, this shouldn't happen
+		// separate actionId by "-"
+		args := strings.Split(payload.ActionCallback.BlockActions[0].ActionID, "-")
+		for _, interaction := range InteractionList {
+			if args[0] == interaction.Prefix {
+				go interaction.Execute(payload, config)
+				break
+			}
+		}
 		return
 	default:
 		// nothing yet

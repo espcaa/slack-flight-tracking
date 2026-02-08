@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"flight-tracker-slack/commands"
+	"flight-tracker-slack/interactivity"
 	"flight-tracker-slack/maps"
 	"flight-tracker-slack/shared"
 	"log"
@@ -68,6 +69,7 @@ func Start(config shared.Config) {
 	}
 
 	config.UserDB = db
+	setupDatabase(db)
 
 	r := chi.NewRouter()
 
@@ -80,11 +82,7 @@ func Start(config shared.Config) {
 	// interactivity
 
 	r.Post("/slack/interactivity", func(w http.ResponseWriter, r *http.Request) {
-		// print all the data we can get
-		r.ParseForm()
-		log.Println("Received interactivity payload: " + r.FormValue("payload"))
-		// acknowledge receipt
-		w.WriteHeader(http.StatusOK)
+		interactivity.HandleInteraction(w, r, config)
 	})
 
 	r.Get("/commands/{name}", func(w http.ResponseWriter, r *http.Request) {
@@ -120,19 +118,17 @@ func setupDatabase(db *sql.DB) {
 	schema := `
     CREATE TABLE IF NOT EXISTS flights (
         id TEXT PRIMARY KEY,
+        flight_number TEXT,
         slack_channel TEXT,
-        status TEXT,
-        is_airborne INTEGER DEFAULT 0,
-        scheduled_dep INTEGER,
-        current_eta INTEGER,
-        last_periodic_update INTEGER DEFAULT 0,
-        is_completed INTEGER DEFAULT 0
+        slack_user_id TEXT,
+        departure TEXT
     );
     CREATE TABLE IF NOT EXISTS alerts_sent (
         flight_id TEXT,
         alert_type TEXT,
         PRIMARY KEY (flight_id, alert_type)
-    );`
+    );
+    `
 
 	_, err := db.Exec(schema)
 	if err != nil {

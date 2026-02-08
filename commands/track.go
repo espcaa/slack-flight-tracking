@@ -16,6 +16,18 @@ var TrackCommand = shared.Command{
 }
 
 func Track(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block, bool, func() error) {
+
+	// first check if the bot is in the channel, and it's not a dm
+
+	isInChannel, err := config.SlackClient.GetConversationInfo(&slack.GetConversationInfoInput{
+		ChannelID:         slashCommand.ChannelID,
+		IncludeLocale:     false,
+		IncludeNumMembers: false,
+	})
+	if err != nil || isInChannel.IsMember == false && isInChannel.IsOpen == false {
+		return shared.NewErrorBlocks(err, ":warning: I need to be in this channel to track flights here! "), false, nil
+	}
+
 	args, err := shlex.Split(slashCommand.Text)
 	if err != nil || len(args) < 1 {
 		return []slack.Block{
@@ -46,7 +58,21 @@ func Track(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block
 
 	flightsInfo, err := flights.GetFlightInfo(flightNumber)
 	if err != nil {
-		return NewErrorBlocks(err), false, nil
+		return shared.NewErrorBlocks(err), false, nil
+	}
+	if flightsInfo.GetFirstFlight().Airline.FullName == "" {
+		return []slack.Block{
+			slack.NewSectionBlock(
+				slack.NewTextBlockObject(slack.MarkdownType, "Hmm... I couldn't find any flight with that number :pensive:", false, false),
+				nil,
+				nil,
+			),
+			slack.NewSectionBlock(
+				slack.NewTextBlockObject(slack.MarkdownType, "_Please double-check the flight number and try again._", false, false),
+				nil,
+				nil,
+			),
+		}, false, nil
 	}
 
 	// now return a datepicker
@@ -72,7 +98,7 @@ func Track(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block
 			nil,
 			slack.NewAccessory(
 				slack.NewDatePickerBlockElement(
-					"track_departure_date_picker",
+					"trackflightformsubmit-departuredate",
 				),
 			),
 		),
@@ -81,14 +107,14 @@ func Track(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block
 			nil,
 			slack.NewAccessory(
 				slack.NewTimePickerBlockElement(
-					"track_departure_time_picker",
+					"trackflightformsubmit-departuretime",
 				),
 			),
 		),
 		slack.NewActionBlock(
 			"track_flight_submit_button",
 			slack.NewButtonBlockElement(
-				"track_flight_submit",
+				"trackflightformsubmit-button",
 				flightNumber,
 				slack.NewTextBlockObject(slack.PlainTextType, "Track Flight", false, false),
 			).WithStyle(slack.StylePrimary),

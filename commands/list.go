@@ -14,5 +14,34 @@ var ListCommand = shared.Command{
 }
 
 func List(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block, bool, func() error) {
-	return []slack.Block{}, true, nil
+	var flightData, err = shared.ListFlightsByUser(slashCommand.UserID, config)
+	if err != nil {
+		return shared.NewErrorBlocks(err), false, nil
+	}
+	if len(flightData) == 0 {
+		return []slack.Block{
+			slack.NewSectionBlock(
+				slack.NewTextBlockObject(slack.MarkdownType, "You don't have any tracked flights yet. Use `/track-flight` to start tracking!", false, false),
+				nil,
+				nil,
+			),
+		}, false, nil
+	}
+
+	var blocks []slack.Block
+	for _, flight := range flightData {
+		blocks = append(blocks, slack.NewSectionBlock(
+			slack.NewTextBlockObject(slack.MarkdownType, "• *"+flight.FlightNumber+"* in channel <#"+flight.SlackChannel+">", false, false),
+			nil,
+			slack.NewAccessory(
+				slack.NewButtonBlockElement(
+					"untrack-"+flight.FlightNumber+"-"+flight.SlackChannel,
+					"",
+					slack.NewTextBlockObject(slack.PlainTextType, "Untrack", false, false),
+				).WithStyle(slack.StyleDanger),
+			),
+		))
+	}
+
+	return blocks, false, nil
 }

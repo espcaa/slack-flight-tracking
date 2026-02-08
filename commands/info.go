@@ -60,7 +60,7 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 
 	flightInfo, err := flights.GetFlightInfo(flightNumber)
 	if err != nil {
-		return NewErrorBlocks(err), false, nil
+		return shared.NewErrorBlocks(err), false, nil
 	}
 
 	var fd flights.FlightDetail

@@ -91,7 +91,7 @@ func HandleCommand(name string, w http.ResponseWriter, r *http.Request, config s
 			slack.PostWebhook(cmd.ResponseURL, &slack.WebhookMessage{
 				ResponseType: slack.ResponseTypeEphemeral,
 				Blocks: &slack.Blocks{
-					BlockSet: NewErrorBlocks(err),
+					BlockSet: shared.NewErrorBlocks(err),
 				},
 			})
 		}
@@ -121,7 +121,7 @@ func HandleCommand(name string, w http.ResponseWriter, r *http.Request, config s
 					slack.PostWebhook(cmd.ResponseURL, &slack.WebhookMessage{
 						ResponseType: slack.ResponseTypeEphemeral,
 						Blocks: &slack.Blocks{
-							BlockSet: NewErrorBlocks(err),
+							BlockSet: shared.NewErrorBlocks(err),
 						},
 					})
 					log.Printf("failed to post error message to webhook: %v", err)
