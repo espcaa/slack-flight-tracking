@@ -62,7 +62,7 @@ func HandleTrackFlightFormSubmit(payload slack.InteractionCallback, config share
 			var flight shared.Flight = shared.Flight{
 				ID:           uuid.New().String(),
 				FlightNumber: flightNum,
-				Departure:    time.Unix(departure_unix, 0).Format(time.RFC3339),
+				Departure:    departure_unix,
 				SlackChannel: payload.Channel.ID,
 				SlackUserID:  payload.User.ID,
 			}

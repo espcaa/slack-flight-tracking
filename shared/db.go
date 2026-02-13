@@ -29,6 +29,45 @@ type FlightFilter struct {
 	SlackUserID  string
 }
 
+func GetFlightState(flightID string, config Config) (*FlightState, error) {
+	row := config.UserDB.QueryRow(`SELECT flight_id, status, origin_gate, dest_gate,
+		dep_scheduled, dep_estimated, dep_actual, arr_scheduled, arr_estimated, arr_actual
+		FROM flight_state WHERE flight_id = ?`, flightID)
+
+	var s FlightState
+	err := row.Scan(&s.FlightID, &s.Status, &s.OriginGate, &s.DestGate,
+		&s.DepScheduled, &s.DepEstimated, &s.DepActual, &s.ArrScheduled, &s.ArrEstimated, &s.ArrActual)
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
+func SaveFlightState(state FlightState, config Config) error {
+	_, err := config.UserDB.Exec(`INSERT INTO flight_state (flight_id, status, origin_gate, dest_gate,
+		dep_scheduled, dep_estimated, dep_actual, arr_scheduled, arr_estimated, arr_actual)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(flight_id) DO UPDATE SET
+		status=excluded.status, origin_gate=excluded.origin_gate,
+		dest_gate=excluded.dest_gate,
+		dep_scheduled=excluded.dep_scheduled, dep_estimated=excluded.dep_estimated, dep_actual=excluded.dep_actual,
+		arr_scheduled=excluded.arr_scheduled, arr_estimated=excluded.arr_estimated, arr_actual=excluded.arr_actual`,
+		state.FlightID, state.Status, state.OriginGate, state.DestGate,
+		state.DepScheduled, state.DepEstimated, state.DepActual, state.ArrScheduled, state.ArrEstimated, state.ArrActual)
+	return err
+}
+
+func AlertAlreadySent(flightID, alertType string, config Config) bool {
+	row := config.UserDB.QueryRow("SELECT 1 FROM alerts_sent WHERE flight_id = ? AND alert_type = ?", flightID, alertType)
+	var exists int
+	return row.Scan(&exists) == nil
+}
+
+func MarkAlertSent(flightID, alertType string, config Config) error {
+	_, err := config.UserDB.Exec("INSERT OR IGNORE INTO alerts_sent (flight_id, alert_type) VALUES (?, ?)", flightID, alertType)
+	return err
+}
+
 func GetFlights(filter FlightFilter, config Config) ([]Flight, error) {
 	query := "SELECT id, flight_number, slack_channel, slack_user_id, departure FROM flights WHERE 1=1"
 	args := []any{}

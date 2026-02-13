@@ -144,7 +144,8 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 		"*Arrival:* " + arrivalScheduled + " (estimated: " + estimatedArrival + ")\n" +
 		"*Altitude:* " + fmt.Sprintf("%d00 ft", altitude) + "\n" +
 		"*Speed:* " + fmt.Sprintf("%d knots", speed) + "\n" +
-		"*Gate:* " + fmt.Sprintf("%s → %s", fd.Origin.Gate, fd.Destination.Gate)
+		"*Gate:* " + fmt.Sprintf("%s → %s", fd.Origin.Gate, fd.Destination.Gate) +
+		"\n\n_Flight status: " + fd.FlightStatus + "_"
 
 	blocks = append(blocks, slack.NewSectionBlock(
 		slack.NewTextBlockObject(slack.MarkdownType, infoText, false, false),

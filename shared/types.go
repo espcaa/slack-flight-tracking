@@ -40,5 +40,23 @@ type Flight struct {
 	FlightNumber string `db:"flight_number" json:"flight_number"`
 	SlackChannel string `db:"slack_channel" json:"slack_channel"`
 	SlackUserID  string `db:"slack_user_id" json:"slack_user_id"`
-	Departure    string `db:"departure" json:"departure"`
+	Departure    int64  `db:"departure" json:"departure"`
+}
+
+type FlightState struct {
+	FlightID       string `db:"flight_id"`
+	Status         string `db:"status"`
+	OriginGate     string `db:"origin_gate"`
+	OriginTerminal string `db:"origin_terminal"`
+	DestGate       string `db:"dest_gate"`
+	DestTerminal   string `db:"dest_terminal"`
+	DepScheduled   int64  `db:"dep_scheduled"`
+	DepEstimated   int64  `db:"dep_estimated"`
+	DepActual      int64  `db:"dep_actual"`
+	ArrScheduled   int64  `db:"arr_scheduled"`
+	ArrEstimated   int64  `db:"arr_estimated"`
+	ArrActual      int64  `db:"arr_actual"`
+	Altitude       int    `db:"altitude"`
+	Groundspeed    int    `db:"groundspeed"`
+	UpdatedAt      int64  `db:"updated_at"`
 }

@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"flight-tracker-slack/flights"
 	"fmt"
 
 	"github.com/slack-go/slack"
@@ -23,5 +24,23 @@ func NewErrorBlocks(err error, customMessage ...string) []slack.Block {
 			nil,
 			nil,
 		),
+	}
+}
+
+func FlightDetailsToFlightState(details *flights.FlightDetail, id string) FlightState {
+
+	schedule := details.GetSchedule()
+
+	return FlightState{
+		FlightID:     id,
+		Status:       details.FlightStatus,
+		OriginGate:   details.Origin.Gate,
+		DestGate:     details.Destination.Gate,
+		DepScheduled: schedule.DepartureScheduled.Unix(),
+		DepEstimated: schedule.DepartureEstimated.Unix(),
+		DepActual:    schedule.DepartureActual.Unix(),
+		ArrScheduled: schedule.ArrivalScheduled.Unix(),
+		ArrEstimated: schedule.ArrivalEstimated.Unix(),
+		ArrActual:    schedule.ArrivalActual.Unix(),
 	}
 }

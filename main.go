@@ -135,15 +135,13 @@ func Start(config shared.Config) {
 
 	log.Println("Starting server on port " + config.Port)
 
+	LogicLoop := NewLogicLoop(config)
+	go LogicLoop.Run()
 	err = http.ListenAndServe(":"+config.Port, r)
 	if err != nil {
 		log.Fatal("Error starting server: " + err.Error())
 	}
 
-	LogicLoop := LogicLoop{
-		Config: config,
-	}
-	go LogicLoop.Run()
 }
 
 func setupDatabase(db *sql.DB) {
@@ -153,12 +151,24 @@ func setupDatabase(db *sql.DB) {
         flight_number TEXT,
         slack_channel TEXT,
         slack_user_id TEXT,
-        departure TEXT
+        departure INTEGER
     );
     CREATE TABLE IF NOT EXISTS alerts_sent (
         flight_id TEXT,
         alert_type TEXT,
         PRIMARY KEY (flight_id, alert_type)
+    );
+    CREATE TABLE IF NOT EXISTS flight_state (
+        flight_id TEXT PRIMARY KEY,
+        status TEXT,
+        origin_gate TEXT,
+        dest_gate TEXT,
+        dep_scheduled INTEGER,
+        dep_estimated INTEGER,
+        dep_actual INTEGER,
+        arr_scheduled INTEGER,
+        arr_estimated INTEGER,
+        arr_actual INTEGER
     );
     `
 

@@ -103,7 +103,7 @@ func Track(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block
 			),
 		),
 		slack.NewSectionBlock(
-			slack.NewTextBlockObject(slack.MarkdownType, "_Departure time_:", false, false),
+			slack.NewTextBlockObject(slack.MarkdownType, "_Departure time_: (choose the nearest time to your actual departure time, but before it)", false, false),
 			nil,
 			slack.NewAccessory(
 				slack.NewTimePickerBlockElement(
