@@ -28,5 +28,5 @@ func main() {
 		panic(fmt.Errorf("failed to write README: %w", err))
 	}
 
-	fmt.Println("Successfully updated README.md")
+	fmt.Println("Succesfully updated README.md")
 }

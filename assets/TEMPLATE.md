@@ -8,5 +8,3 @@ A slackbot to track commercial flights in your workspace!\
 ### Commands
 
 {{commands}}
-
-###
