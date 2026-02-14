@@ -133,6 +133,44 @@ func (b *LogicLoop) detectChanges(f shared.Flight, prev *shared.FlightState, cur
 		return
 	}
 
+	// check if the flight departed
+
+	if prev.DepActual == 0 && curr.DepActual != 0 {
+		depTime := time.Unix(curr.DepActual, 0).Format(time.Kitchen)
+		b.sendAlert(f, "flight_departed", slack.NewSectionBlock(
+			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf(":airplane_departure: *Flight departed!* :airplane_departure:\nDeparture time: %s", depTime), false, false),
+			nil,
+			nil,
+		))
+	}
+
+	// check if flight landed
+
+	if prev.ArrActual == 0 && curr.ArrActual != 0 {
+		arrTime := time.Unix(curr.ArrActual, 0).Format(time.Kitchen)
+		b.sendAlert(f, "flight_landed", slack.NewSectionBlock(
+			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf(":airplane_arriving: *Flight landed!* :airplane_arriving:\nArrival time: %s", arrTime), false, false),
+			nil,
+			nil,
+		))
+	}
+
+	// regular updates during the flight (1 every 2 hours)
+	if curr.DepActual != 0 && curr.ArrActual == 0 {
+		hoursSinceDeparture := int(time.Since(time.Unix(curr.DepActual, 0)).Hours())
+		window := hoursSinceDeparture / 2
+
+		if window > 0 {
+			alertID := fmt.Sprintf("in_flight_update_%d", window)
+
+			b.sendAlert(f, alertID, slack.NewSectionBlock(
+				slack.NewTextBlockObject(slack.MarkdownType, ":airplane: *In-flight update!* Still cruising... :airplane:", false, false),
+				nil,
+				nil,
+			))
+		}
+	}
+
 	// check if departure_time is updated
 	if prev.DepEstimated != curr.DepEstimated {
 		prevTime := time.Unix(prev.DepEstimated, 0).Format(time.Kitchen)
@@ -175,13 +213,19 @@ func (b *LogicLoop) detectChanges(f shared.Flight, prev *shared.FlightState, cur
 }
 
 func (b *LogicLoop) sendAlert(f shared.Flight, alertType string, blocks slack.Block) {
+	// add footer to blocks
+
+	footer := slack.NewContextBlock("",
+		slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("_flight %s - %s, tracked by <@%s>_", f.FlightNumber, f.ID, f.SlackUserID), false, false),
+	)
+
 	if shared.AlertAlreadySent(f.ID, alertType, b.Config) {
 		return
 	}
 
 	_, _, err := b.Config.SlackClient.PostMessage(
 		f.SlackChannel,
-		slack.MsgOptionBlocks(blocks),
+		slack.MsgOptionBlocks(blocks, footer),
 	)
 	if err != nil {
 		log.Printf("Error sending alert for flight %s (%s): %v", f.ID, alertType, err)
