@@ -2,6 +2,7 @@ package commands
 
 import (
 	"flight-tracker-slack/shared"
+	"strings"
 
 	"github.com/google/shlex"
 	"github.com/slack-go/slack"
@@ -39,13 +40,14 @@ func Help(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block,
 			nil,
 		))
 	} else {
-		helpText := "*Available Commands:*\n"
+		var helpText strings.Builder
+		helpText.WriteString("*Available Commands:*\n")
 		for _, cmd := range CommandList {
-			helpText += "• */" + cmd.Name + "*: " + cmd.Description + "\n"
+			helpText.WriteString("• */" + cmd.Name + "*: " + cmd.Description + "\n")
 		}
-		helpText += "\nType `/help [command_name]` for detailed info on a specific command."
+		helpText.WriteString("\nType `/help [command_name]` for detailed info on a specific command.")
 		helpBlocks = append(helpBlocks, slack.NewSectionBlock(
-			slack.NewTextBlockObject(slack.MarkdownType, helpText, false, false),
+			slack.NewTextBlockObject(slack.MarkdownType, helpText.String(), false, false),
 			nil,
 			nil,
 		))

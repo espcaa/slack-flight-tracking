@@ -7,11 +7,6 @@ A slackbot to track commercial flights in your workspace!\
 
 ### Commands
 
-- `list-flights`: List all tracked flights
-- `track-flight`: Track a flight
-- `untrack-flight`: Untrack a flight
-- `flights-help`: Show help information
-- `flight-info`: Get information about a specific flight
-
+{{commands}}
 
 ###
