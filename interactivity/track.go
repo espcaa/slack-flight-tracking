@@ -44,9 +44,9 @@ func HandleTrackFlightFormSubmit(payload slack.InteractionCallback, config share
 			}
 
 			// register the flight for tracking
-			var departure_unix int64
-			var departure_date_time time.Time
-			departure_date_time, err := time.Parse("2006-01-02", selectedDate)
+			var departureUnix int64
+			var departureDateTime time.Time
+			departureDateTime, err := time.Parse("2006-01-02", selectedDate)
 			if err != nil {
 				log.Printf("Error parsing departure date: %v\n", err)
 				return
@@ -56,13 +56,13 @@ func HandleTrackFlightFormSubmit(payload slack.InteractionCallback, config share
 				log.Printf("Error parsing departure time: %v\n", err)
 				return
 			}
-			departure_date_time = departure_date_time.Add(time.Hour*time.Duration(departure_time.Hour()) + time.Minute*time.Duration(departure_time.Minute()))
-			departure_unix = departure_date_time.Unix()
+			departureDateTime = departureDateTime.Add(time.Hour*time.Duration(departure_time.Hour()) + time.Minute*time.Duration(departure_time.Minute()))
+			departureUnix = departureDateTime.Unix()
 
 			var flight shared.Flight = shared.Flight{
 				ID:           uuid.New().String(),
 				FlightNumber: flightNum,
-				Departure:    departure_unix,
+				Departure:    departureUnix,
 				SlackChannel: payload.Channel.ID,
 				SlackUserID:  payload.User.ID,
 			}

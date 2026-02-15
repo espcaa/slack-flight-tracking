@@ -29,7 +29,7 @@ func GetFlightInfo(flightNumber string) (FlightDataWrapper, error) {
 
 	// capitalize the flight number
 
-	strings.ToUpper(flightNumber)
+	flightNumber = strings.ToUpper(flightNumber)
 
 	// expand to full flight number if needed
 

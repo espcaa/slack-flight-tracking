@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"flight-tracker-slack/flights"
 	"flight-tracker-slack/shared"
 	"fmt"
@@ -28,7 +30,9 @@ func NewLogicLoop(cfg shared.Config) *LogicLoop {
 func (b *LogicLoop) Run() {
 	log.Println("Starting logic loop...")
 
-	flights, err := shared.GetFlights(shared.FlightFilter{}, b.Config)
+	flights, err := shared.GetFlights(shared.FlightFilter{
+		DepartureAfter: time.Now().Unix(),
+	}, b.Config)
 	if err != nil {
 		log.Println("Error loading flights from database:", err)
 		return
@@ -37,67 +41,52 @@ func (b *LogicLoop) Run() {
 	log.Printf("Loaded %d flights from database\n", len(flights))
 
 	for _, f := range flights {
-		// add if flight departure is in the past + not already goroutine for it
-		if time.Unix(f.Departure, 0).After(time.Now()) {
-			log.Printf("Tracking flight %s with departure at %s\n", f.ID, time.Unix(f.Departure, 0).Format(time.Kitchen))
-			b.addFlight(f)
-		}
+		log.Printf("Tracking flight %s with departure at %s\n", f.ID, time.Unix(f.Departure, 0).Format(time.Kitchen))
+		b.addFlight(f)
 	}
-	// remove flights not in database anymore every 30s
-	tickerRemove := time.NewTicker(30 * time.Second)
-	defer tickerRemove.Stop()
 
-	go func() {
-		for range tickerRemove.C {
-			log.Println("Checking for flights to remove...")
-			currentFlights, err := shared.GetFlights(shared.FlightFilter{}, b.Config)
-			if err != nil {
-				log.Println("Error loading flights from database:", err)
-				continue
-			}
-
-			currentFlightIDs := make(map[string]bool)
-			for _, f := range currentFlights {
-				currentFlightIDs[f.ID] = true
-			}
-
-			b.mu.Lock()
-			for trackedID := range b.flightCancels {
-				if !currentFlightIDs[trackedID] {
-					log.Printf("Flight %s is no longer in the database, removing from tracking\n", trackedID)
-					b.removeFlight(trackedID)
-				}
-			}
-			b.mu.Unlock()
-		}
-	}()
-
-	// recheck every 30s to add new flights that are leaving now
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		log.Println("Checking for new flights to track...")
-		flights, err := shared.GetFlights(shared.FlightFilter{}, b.Config)
-		if err != nil {
-			log.Println("Error loading flights from database:", err)
-			continue
-		}
-
-		for _, f := range flights {
-			log.Printf("Checking flight %s with departure at %s\n", f.ID, time.Unix(f.Departure, 0).Format(time.Kitchen))
-			log.Printf("Current time is %s\n", time.Now().Format(time.Kitchen))
-			log.Printf("Is departure after now? %t\n", time.Unix(f.Departure, 0).After(time.Now()))
-			if time.Unix(f.Departure, 0).After(time.Now()) {
-				log.Printf("Found new flight to track: %s ", f.ID)
-				b.addFlight(f)
-			}
-		}
+		b.syncFlights()
 	}
 }
 
+func WasAlertSent(flightID, alertType string, config shared.Config) bool {
+	row := config.UserDB.QueryRow("SELECT 1 FROM alerts_sent WHERE flight_id = ? AND alert_type = ?", flightID, alertType)
+	var exists int
+	return row.Scan(&exists) == nil
+}
+
+func (b *LogicLoop) syncFlights() {
+	flights, err := shared.GetFlights(shared.FlightFilter{
+		DepartureAfter: time.Now().Unix(),
+	}, b.Config)
+	if err != nil {
+		log.Println("Error loading flights from database:", err)
+		return
+	}
+
+	dbIDs := make(map[string]bool, len(flights))
+	for _, f := range flights {
+		dbIDs[f.ID] = true
+		b.addFlight(f)
+	}
+
+	b.mu.Lock()
+	for id, cancel := range b.flightCancels {
+		if !dbIDs[id] {
+			log.Printf("Flight %s is no longer active, removing from tracking\n", id)
+			cancel()
+			delete(b.flightCancels, id)
+		}
+	}
+	b.mu.Unlock()
+}
+
 func (b *LogicLoop) trackFlight(ctx context.Context, f shared.Flight) {
-	ticker := time.NewTicker(1 * time.Minute)
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -115,7 +104,7 @@ func (b *LogicLoop) trackFlight(ctx context.Context, f shared.Flight) {
 
 			curr := shared.FlightDetailsToFlightState(currData, f.ID)
 			prev, err := shared.GetFlightState(f.ID, b.Config)
-			if err != nil {
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				log.Println("Error getting flight state for", f.ID, ":", err)
 				continue
 			}
@@ -130,12 +119,13 @@ func (b *LogicLoop) trackFlight(ctx context.Context, f shared.Flight) {
 
 func (b *LogicLoop) detectChanges(f shared.Flight, prev *shared.FlightState, curr *shared.FlightState) {
 	if prev == nil {
+		log.Printf("No previous state for flight %s, skipping change detection\n", f.ID)
 		return
 	}
 
 	// check if the flight departed
 
-	if prev.DepActual == 0 && curr.DepActual != 0 {
+	if curr.DepActual != 0 && WasAlertSent(f.ID, "flight_departed", b.Config) == false {
 		depTime := time.Unix(curr.DepActual, 0).Format(time.Kitchen)
 		b.sendAlert(f, "flight_departed", slack.NewSectionBlock(
 			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf(":airplane_departure: *Flight departed!* :airplane_departure:\nDeparture time: %s", depTime), false, false),

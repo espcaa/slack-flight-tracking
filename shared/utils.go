@@ -3,6 +3,7 @@ package shared
 import (
 	"flight-tracker-slack/flights"
 	"fmt"
+	"time"
 
 	"github.com/slack-go/slack"
 )
@@ -27,6 +28,13 @@ func NewErrorBlocks(err error, customMessage ...string) []slack.Block {
 	}
 }
 
+func safeUnix(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.Unix()
+}
+
 func FlightDetailsToFlightState(details *flights.FlightDetail, id string) FlightState {
 
 	schedule := details.GetSchedule()
@@ -36,11 +44,11 @@ func FlightDetailsToFlightState(details *flights.FlightDetail, id string) Flight
 		Status:       details.FlightStatus,
 		OriginGate:   details.Origin.Gate,
 		DestGate:     details.Destination.Gate,
-		DepScheduled: schedule.DepartureScheduled.Unix(),
-		DepEstimated: schedule.DepartureEstimated.Unix(),
-		DepActual:    schedule.DepartureActual.Unix(),
-		ArrScheduled: schedule.ArrivalScheduled.Unix(),
-		ArrEstimated: schedule.ArrivalEstimated.Unix(),
-		ArrActual:    schedule.ArrivalActual.Unix(),
+		DepScheduled: safeUnix(schedule.DepartureScheduled),
+		DepEstimated: safeUnix(schedule.DepartureEstimated),
+		DepActual:    safeUnix(schedule.DepartureActual),
+		ArrScheduled: safeUnix(schedule.ArrivalScheduled),
+		ArrEstimated: safeUnix(schedule.ArrivalEstimated),
+		ArrActual:    safeUnix(schedule.ArrivalActual),
 	}
 }

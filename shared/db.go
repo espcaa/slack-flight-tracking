@@ -23,10 +23,11 @@ func UntrackFlight(id string, config Config) error {
 }
 
 type FlightFilter struct {
-	ID           string
-	FlightNumber string
-	SlackChannel string
-	SlackUserID  string
+	ID             string
+	FlightNumber   string
+	SlackChannel   string
+	SlackUserID    string
+	DepartureAfter int64
 }
 
 func GetFlightState(flightID string, config Config) (*FlightState, error) {
@@ -87,6 +88,10 @@ func GetFlights(filter FlightFilter, config Config) ([]Flight, error) {
 	if filter.SlackUserID != "" {
 		query += " AND slack_user_id = ?"
 		args = append(args, filter.SlackUserID)
+	}
+	if filter.DepartureAfter != 0 {
+		query += " AND departure > ?"
+		args = append(args, filter.DepartureAfter)
 	}
 
 	rows, err := config.UserDB.Query(query, args...)
