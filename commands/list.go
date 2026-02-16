@@ -2,6 +2,7 @@ package commands
 
 import (
 	"flight-tracker-slack/shared"
+	"time"
 
 	"github.com/slack-go/slack"
 )
@@ -34,7 +35,7 @@ func List(slashCommand slack.SlashCommand, config shared.Config) ([]slack.Block,
 	var blocks []slack.Block
 	for _, flight := range flightData {
 		blocks = append(blocks, slack.NewSectionBlock(
-			slack.NewTextBlockObject(slack.MarkdownType, "• *"+flight.FlightNumber+"* in channel <#"+flight.SlackChannel+">", false, false),
+			slack.NewTextBlockObject(slack.MarkdownType, "• *"+flight.FlightNumber+"* in channel <#"+flight.SlackChannel+">, departing in "+shared.FormatDuration(time.Until(time.Unix(flight.Departure, 0))), false, false),
 			nil,
 			slack.NewAccessory(
 				slack.NewButtonBlockElement(

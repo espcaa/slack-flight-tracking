@@ -20,8 +20,8 @@ type FlightDetail struct {
 	GateArrivalTimes   GateTimes      `json:"gateArrivalTimes"`
 	GateDepartureTimes GateTimes      `json:"gateDepartureTimes"`
 	LandingTimes       GateTimes      `json:"landingTimes"`
+	TakeOffTimes       GateTimes      `json:"takeoffTimes"`
 	Origin             AirportDetail  `json:"origin"`
-	TakeoffTimes       GateTimes      `json:"takeoffTimes"`
 	Groundspeed        int            `json:"groundspeed"`
 	Heading            int            `json:"heading"`
 	Timestamp          int64          `json:"timestamp"`
@@ -101,6 +101,10 @@ type FlightSchedule struct {
 	ArrivalScheduled   time.Time
 	ArrivalEstimated   time.Time
 	ArrivalActual      time.Time
+	TakeOffActual      time.Time
+	TakeOffEstimated   time.Time
+	LandingActual      time.Time
+	LandingEstimated   time.Time
 }
 
 func (g GateTimes) ToTime(t *int64) time.Time {
@@ -115,6 +119,10 @@ func (fd *FlightDetail) GetSchedule() FlightSchedule {
 		DepartureScheduled: fd.GateDepartureTimes.ToTime(fd.GateDepartureTimes.Scheduled),
 		DepartureActual:    fd.GateDepartureTimes.ToTime(fd.GateDepartureTimes.Actual),
 		DepartureEstimated: fd.GateDepartureTimes.ToTime(fd.GateDepartureTimes.Estimated),
+		TakeOffActual:      fd.TakeOffTimes.ToTime(fd.TakeOffTimes.Actual),
+		TakeOffEstimated:   fd.TakeOffTimes.ToTime(fd.TakeOffTimes.Estimated),
+		LandingActual:      fd.LandingTimes.ToTime(fd.LandingTimes.Actual),
+		LandingEstimated:   fd.LandingTimes.ToTime(fd.LandingTimes.Estimated),
 		ArrivalScheduled:   fd.GateArrivalTimes.ToTime(fd.GateArrivalTimes.Scheduled),
 		ArrivalEstimated:   fd.GateArrivalTimes.ToTime(fd.GateArrivalTimes.Estimated),
 		ArrivalActual:      fd.GateArrivalTimes.ToTime(fd.GateArrivalTimes.Actual),

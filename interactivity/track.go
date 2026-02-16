@@ -2,9 +2,11 @@ package interactivity
 
 import (
 	"errors"
+	"flight-tracker-slack/flights"
 	"flight-tracker-slack/shared"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -43,10 +45,36 @@ func HandleTrackFlightFormSubmit(payload slack.InteractionCallback, config share
 				return
 			}
 
+			// find the departure airport tz
+
+			flightData, err := flights.GetFlightInfo(flightNum)
+			if err != nil {
+				log.Printf("Error fetching flight info for %s: %v\n", flightNum, err)
+				config.SlackClient.PostEphemeral(payload.Channel.ID, payload.User.ID, slack.MsgOptionBlocks(
+					shared.NewErrorBlocks(fmt.Errorf("Could not fetch flight information for %s. Please check the flight number and try again.", flightNum))...,
+				))
+				return
+			}
+			firstFlight := flightData.GetFirstFlight()
+			if firstFlight.Origin.Iata == "" {
+				log.Printf("No active flight found for flight number %s\n", flightNum)
+				config.SlackClient.PostEphemeral(payload.Channel.ID, payload.User.ID, slack.MsgOptionBlocks(
+					shared.NewErrorBlocks(fmt.Errorf("No active flight found for flight number %s. Please check the flight number and try again.", flightNum))...,
+				))
+				return
+			}
+
 			// register the flight for tracking
 			var departureUnix int64
 			var departureDateTime time.Time
-			departureDateTime, err := time.Parse("2006-01-02", selectedDate)
+			// remove the ":" at the start of the timezone string
+			correctedTimezone := strings.TrimPrefix(firstFlight.Origin.TZ, ":")
+			loc, err := time.LoadLocation(correctedTimezone)
+			if err != nil {
+				log.Printf("Error loading timezone %q: %v\n", firstFlight.Origin.TZ, err)
+				loc = time.UTC
+			}
+			departureDateTime, err = time.ParseInLocation("2006-01-02", selectedDate, loc)
 			if err != nil {
 				log.Printf("Error parsing departure date: %v\n", err)
 				return

@@ -162,13 +162,22 @@ func setupDatabase(db *sql.DB) {
         flight_id TEXT PRIMARY KEY,
         status TEXT,
         origin_gate TEXT,
+        origin_terminal TEXT,
         dest_gate TEXT,
+        dest_terminal TEXT,
         dep_scheduled INTEGER,
         dep_estimated INTEGER,
         dep_actual INTEGER,
+        takeoff_actual INTEGER,
+        takeoff_estimated INTEGER,
+        landing_actual INTEGER,
+        landing_estimated INTEGER,
         arr_scheduled INTEGER,
         arr_estimated INTEGER,
-        arr_actual INTEGER
+        arr_actual INTEGER,
+        altitude INTEGER,
+        groundspeed INTEGER,
+        updated_at INTEGER
     );
     `
 

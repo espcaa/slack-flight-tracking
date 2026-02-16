@@ -3,6 +3,7 @@ package shared
 import (
 	"flight-tracker-slack/flights"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/slack-go/slack"
@@ -40,15 +41,37 @@ func FlightDetailsToFlightState(details *flights.FlightDetail, id string) Flight
 	schedule := details.GetSchedule()
 
 	return FlightState{
-		FlightID:     id,
-		Status:       details.FlightStatus,
-		OriginGate:   details.Origin.Gate,
-		DestGate:     details.Destination.Gate,
-		DepScheduled: safeUnix(schedule.DepartureScheduled),
-		DepEstimated: safeUnix(schedule.DepartureEstimated),
-		DepActual:    safeUnix(schedule.DepartureActual),
-		ArrScheduled: safeUnix(schedule.ArrivalScheduled),
-		ArrEstimated: safeUnix(schedule.ArrivalEstimated),
-		ArrActual:    safeUnix(schedule.ArrivalActual),
+		FlightID:      id,
+		Status:        details.FlightStatus,
+		OriginGate:    details.Origin.Gate,
+		DestGate:      details.Destination.Gate,
+		DepScheduled:  safeUnix(schedule.DepartureScheduled),
+		DepEstimated:  safeUnix(schedule.DepartureEstimated),
+		DepActual:     safeUnix(schedule.DepartureActual),
+		TakeOffActual:    safeUnix(schedule.TakeOffActual),
+		TakeOffEstimated: safeUnix(schedule.TakeOffEstimated),
+		LandingActual:    safeUnix(schedule.LandingActual),
+		ArrScheduled:  safeUnix(schedule.ArrivalScheduled),
+		ArrEstimated:  safeUnix(schedule.ArrivalEstimated),
+		ArrActual:     safeUnix(schedule.ArrivalActual),
 	}
+}
+
+func FormatDuration(d time.Duration) string {
+	days := int(d.Hours()) / 24
+	hours := int(d.Hours()) % 24
+	minutes := int(d.Minutes()) % 60
+
+	var parts []string
+	if days > 0 {
+		parts = append(parts, fmt.Sprintf("%dd", days))
+	}
+	if hours > 0 {
+		parts = append(parts, fmt.Sprintf("%dh", hours))
+	}
+	if minutes > 0 {
+		parts = append(parts, fmt.Sprintf("%dm", minutes))
+	}
+
+	return strings.Join(parts, " ")
 }

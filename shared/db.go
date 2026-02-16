@@ -1,7 +1,41 @@
 package shared
 
+import (
+	"fmt"
+	"reflect"
+	"strings"
+)
+
+func structColumns(ptr any) (columns []string, scanDest []any) {
+	v := reflect.ValueOf(ptr).Elem()
+	t := v.Type()
+	for i := 0; i < t.NumField(); i++ {
+		col := t.Field(i).Tag.Get("db")
+		if col == "" {
+			continue
+		}
+		columns = append(columns, col)
+		scanDest = append(scanDest, v.Field(i).Addr().Interface())
+	}
+	return
+}
+
+func placeholders(n int) string {
+	return strings.Repeat("?, ", n-1) + "?"
+}
+
+func upsertSet(columns []string, skip string) string {
+	parts := make([]string, 0, len(columns))
+	for _, c := range columns {
+		if c == skip {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s=excluded.%s", c, c))
+	}
+	return strings.Join(parts, ", ")
+}
+
 func RegisterTrackedFlight(flight Flight, config Config) error {
-	// add the flight to the database
 	_, err := config.UserDB.Exec("INSERT INTO flights (id, flight_number, slack_channel, slack_user_id, departure) VALUES ($1, $2, $3, $4, $5)", flight.ID, flight.FlightNumber, flight.SlackChannel, flight.SlackUserID, flight.Departure)
 	return err
 }
@@ -31,13 +65,11 @@ type FlightFilter struct {
 }
 
 func GetFlightState(flightID string, config Config) (*FlightState, error) {
-	row := config.UserDB.QueryRow(`SELECT flight_id, status, origin_gate, dest_gate,
-		dep_scheduled, dep_estimated, dep_actual, arr_scheduled, arr_estimated, arr_actual
-		FROM flight_state WHERE flight_id = ?`, flightID)
-
 	var s FlightState
-	err := row.Scan(&s.FlightID, &s.Status, &s.OriginGate, &s.DestGate,
-		&s.DepScheduled, &s.DepEstimated, &s.DepActual, &s.ArrScheduled, &s.ArrEstimated, &s.ArrActual)
+	cols, dest := structColumns(&s)
+	query := fmt.Sprintf("SELECT %s FROM flight_state WHERE flight_id = ?", strings.Join(cols, ", "))
+
+	err := config.UserDB.QueryRow(query, flightID).Scan(dest...)
 	if err != nil {
 		return nil, err
 	}
@@ -45,16 +77,23 @@ func GetFlightState(flightID string, config Config) (*FlightState, error) {
 }
 
 func SaveFlightState(state FlightState, config Config) error {
-	_, err := config.UserDB.Exec(`INSERT INTO flight_state (flight_id, status, origin_gate, dest_gate,
-		dep_scheduled, dep_estimated, dep_actual, arr_scheduled, arr_estimated, arr_actual)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(flight_id) DO UPDATE SET
-		status=excluded.status, origin_gate=excluded.origin_gate,
-		dest_gate=excluded.dest_gate,
-		dep_scheduled=excluded.dep_scheduled, dep_estimated=excluded.dep_estimated, dep_actual=excluded.dep_actual,
-		arr_scheduled=excluded.arr_scheduled, arr_estimated=excluded.arr_estimated, arr_actual=excluded.arr_actual`,
-		state.FlightID, state.Status, state.OriginGate, state.DestGate,
-		state.DepScheduled, state.DepEstimated, state.DepActual, state.ArrScheduled, state.ArrEstimated, state.ArrActual)
+	cols, _ := structColumns(&state)
+	vals := make([]any, 0, len(cols))
+	v := reflect.ValueOf(state)
+	t := v.Type()
+	for i := 0; i < t.NumField(); i++ {
+		if t.Field(i).Tag.Get("db") != "" {
+			vals = append(vals, v.Field(i).Interface())
+		}
+	}
+
+	query := fmt.Sprintf(`INSERT INTO flight_state (%s) VALUES (%s)
+		ON CONFLICT(flight_id) DO UPDATE SET %s`,
+		strings.Join(cols, ", "),
+		placeholders(len(cols)),
+		upsertSet(cols, "flight_id"))
+
+	_, err := config.UserDB.Exec(query, vals...)
 	return err
 }
 
