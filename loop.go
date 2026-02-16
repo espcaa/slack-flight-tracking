@@ -135,9 +135,6 @@ func (b *LogicLoop) detectChanges(f shared.Flight, prev *shared.FlightState, cur
 	// check if flight landed
 	// if it landed, remove it from tracking and stop the loop
 
-	log.Printf("Checking if flight %s has landed. ArrActual: %d\n", f.ID, curr.ArrActual)
-	log.Printf("Was alert sent for flight %s landing? %v\n", f.ID, WasAlertSent(f.ID, "flight_landed", b.Config))
-
 	if curr.ArrActual != 0 && WasAlertSent(f.ID, "flight_landed", b.Config) == false {
 		arrTime := time.Unix(curr.ArrActual, 0).Format(time.Kitchen)
 		b.sendAlert(f, "flight_landed", slack.NewSectionBlock(
