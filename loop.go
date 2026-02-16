@@ -31,7 +31,7 @@ func (b *LogicLoop) Run() {
 	log.Println("Starting logic loop...")
 
 	flights, err := shared.GetFlights(shared.FlightFilter{
-		DepartureAfter: time.Now().Unix(),
+		DepartureAfter: time.Now().UTC().Unix(),
 	}, b.Config)
 	if err != nil {
 		log.Println("Error loading flights from database:", err)
@@ -60,9 +60,7 @@ func WasAlertSent(flightID, alertType string, config shared.Config) bool {
 }
 
 func (b *LogicLoop) syncFlights() {
-	flights, err := shared.GetFlights(shared.FlightFilter{
-		DepartureAfter: time.Now().Unix(),
-	}, b.Config)
+	flights, err := shared.GetFlights(shared.FlightFilter{}, b.Config)
 	if err != nil {
 		log.Println("Error loading flights from database:", err)
 		return
@@ -135,14 +133,21 @@ func (b *LogicLoop) detectChanges(f shared.Flight, prev *shared.FlightState, cur
 	}
 
 	// check if flight landed
+	// if it landed, remove it from tracking and stop the loop
 
-	if prev.ArrActual == 0 && curr.ArrActual != 0 {
+	log.Printf("Checking if flight %s has landed. ArrActual: %d\n", f.ID, curr.ArrActual)
+	log.Printf("Was alert sent for flight %s landing? %v\n", f.ID, WasAlertSent(f.ID, "flight_landed", b.Config))
+
+	if curr.ArrActual != 0 && WasAlertSent(f.ID, "flight_landed", b.Config) == false {
 		arrTime := time.Unix(curr.ArrActual, 0).Format(time.Kitchen)
 		b.sendAlert(f, "flight_landed", slack.NewSectionBlock(
 			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf(":airplane_arriving: *Flight landed!* :airplane_arriving:\nArrival time: %s", arrTime), false, false),
 			nil,
 			nil,
 		))
+		log.Printf("Flight %s has landed, stopping tracking\n", f.ID)
+		b.removeFlight(f.ID)
+		return
 	}
 
 	// regular updates during the flight (1 every 2 hours)
@@ -198,8 +203,6 @@ func (b *LogicLoop) detectChanges(f shared.Flight, prev *shared.FlightState, cur
 		))
 	}
 
-	// check if flight was cancelled
-
 }
 
 func (b *LogicLoop) sendAlert(f shared.Flight, alertType string, blocks slack.Block) {
@@ -250,5 +253,11 @@ func (b *LogicLoop) removeFlight(flightID string) {
 		cancel()
 		delete(b.flightCancels, flightID)
 		log.Println("Stopped tracking flight:", flightID)
+	}
+
+	// delete from the database as well
+	err := shared.UntrackFlight(flightID, b.Config)
+	if err != nil {
+		log.Printf("Error untracking flight %s from database: %v", flightID, err)
 	}
 }
