@@ -3,6 +3,7 @@ package shared
 import (
 	"flight-tracker-slack/flights"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -41,19 +42,19 @@ func FlightDetailsToFlightState(details *flights.FlightDetail, id string) Flight
 	schedule := details.GetSchedule()
 
 	return FlightState{
-		FlightID:      id,
-		Status:        details.FlightStatus,
-		OriginGate:    details.Origin.Gate,
-		DestGate:      details.Destination.Gate,
-		DepScheduled:  safeUnix(schedule.DepartureScheduled),
-		DepEstimated:  safeUnix(schedule.DepartureEstimated),
-		DepActual:     safeUnix(schedule.DepartureActual),
+		FlightID:         id,
+		Status:           details.FlightStatus,
+		OriginGate:       details.Origin.Gate,
+		DestGate:         details.Destination.Gate,
+		DepScheduled:     safeUnix(schedule.DepartureScheduled),
+		DepEstimated:     safeUnix(schedule.DepartureEstimated),
+		DepActual:        safeUnix(schedule.DepartureActual),
 		TakeOffActual:    safeUnix(schedule.TakeOffActual),
 		TakeOffEstimated: safeUnix(schedule.TakeOffEstimated),
 		LandingActual:    safeUnix(schedule.LandingActual),
-		ArrScheduled:  safeUnix(schedule.ArrivalScheduled),
-		ArrEstimated:  safeUnix(schedule.ArrivalEstimated),
-		ArrActual:     safeUnix(schedule.ArrivalActual),
+		ArrScheduled:     safeUnix(schedule.ArrivalScheduled),
+		ArrEstimated:     safeUnix(schedule.ArrivalEstimated),
+		ArrActual:        safeUnix(schedule.ArrivalActual),
 	}
 }
 
@@ -74,4 +75,18 @@ func FormatDuration(d time.Duration) string {
 	}
 
 	return strings.Join(parts, " ")
+}
+
+func GenerateProgressBar(width int, percentage float64) string {
+	percentage = math.Max(0, math.Min(100, percentage))
+
+	fullBlocksCount := int(math.Round((float64(width) * percentage) / 100))
+	emptyBlocksCount := width - fullBlocksCount
+
+	fullBlock := "█"
+	emptyBlock := "░"
+
+	bar := strings.Repeat(fullBlock, fullBlocksCount) + strings.Repeat(emptyBlock, emptyBlocksCount)
+
+	return fmt.Sprintf("`%s` %.1f%%", bar, percentage)
 }

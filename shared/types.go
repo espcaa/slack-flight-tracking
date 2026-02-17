@@ -52,7 +52,6 @@ type FlightState struct {
 	DestTerminal     string `db:"dest_terminal"`
 	DepScheduled     int64  `db:"dep_scheduled"`
 	DepEstimated     int64  `db:"dep_estimated"`
-	DepGate          string `db:"dep_gate"`
 	DepActual        int64  `db:"dep_actual"`
 	TakeOffActual    int64  `db:"takeoff_actual"`
 	TakeOffEstimated int64  `db:"takeoff_estimated"`

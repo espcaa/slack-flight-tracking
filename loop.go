@@ -1,13 +1,18 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"flight-tracker-slack/flights"
+	"flight-tracker-slack/maps"
 	"flight-tracker-slack/shared"
 	"fmt"
+	"image"
+	"image/png"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -107,7 +112,7 @@ func (b *LogicLoop) trackFlight(ctx context.Context, f shared.Flight) {
 				continue
 			}
 
-			b.detectChanges(f, prev, &curr)
+			b.detectChanges(f, prev, &curr, currData)
 
 			shared.SaveFlightState(curr, b.Config)
 
@@ -115,27 +120,42 @@ func (b *LogicLoop) trackFlight(ctx context.Context, f shared.Flight) {
 	}
 }
 
-func (b *LogicLoop) detectChanges(f shared.Flight, prev *shared.FlightState, curr *shared.FlightState) {
+func (b *LogicLoop) detectChanges(f shared.Flight, prev *shared.FlightState, curr *shared.FlightState, currData *flights.FlightDetail) {
+
+	destinationTimezone := strings.TrimPrefix(currData.Destination.TZ, ":")
+	destLoc, err := time.LoadLocation(destinationTimezone)
+	if err != nil {
+		log.Printf("Error loading destination timezone %q: %v\n", currData.Destination.TZ, err)
+		destLoc = time.UTC
+	}
+	departureTimezone := strings.TrimPrefix(currData.Origin.TZ, ":")
+	depLoc, err := time.LoadLocation(departureTimezone)
+	if err != nil {
+		log.Printf("Error loading departure timezone %q: %v\n", currData.Origin.TZ, err)
+		depLoc = time.UTC
+	}
+
 	if prev == nil {
 		log.Printf("No previous state for flight %s, skipping change detection\n", f.ID)
 		return
 	}
 
-	// check if dep gate was just announced
-	if curr.DepGate != "" && WasAlertSent(f.ID, "departure_gate_announced", b.Config) == false {
-		depTime := time.Unix(curr.DepEstimated, 0).Format(time.Kitchen)
+	// check if dep gate was announced
+	if curr.OriginGate != "" && WasAlertSent(f.ID, "departure_gate_announced", b.Config) == false {
+		depTime := time.Unix(curr.DepEstimated, 0).In(depLoc).Format(time.Kitchen)
+		depIn := shared.FormatDuration(time.Until(time.Unix(curr.DepEstimated, 0)))
 		b.sendAlert(f, "departure_gate_announced", slack.NewSectionBlock(
-			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("*:seat: Gate announced!* :seat:\nEstimated departure time: %s\nGate: %s", depTime, curr.DepGate), false, false),
+			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("*:seat: Gate announced!* :seat:\nGate *%s*\nEstimated departure time: %s (_in %s_)", curr.OriginGate, depTime, depIn), false, false),
 			nil,
 			nil,
-		))
+		), nil)
 	}
 
 	// check if the flight departed from gate
 
 	if curr.DepActual != 0 && WasAlertSent(f.ID, "flight_departed_from_gate", b.Config) == false {
-		depTime := time.Unix(curr.DepActual, 0).Format(time.Kitchen)
-		depEstimated := time.Unix(curr.DepEstimated, 0).Format(time.Kitchen)
+		depTime := time.Unix(curr.DepActual, 0).In(depLoc).Format(time.Kitchen)
+		depEstimated := time.Unix(curr.DepEstimated, 0).In(depLoc).Format(time.Kitchen)
 		gateMsg := ""
 		if curr.OriginGate != "" {
 			gateMsg = fmt.Sprintf("gate %s", curr.OriginGate)
@@ -146,26 +166,26 @@ func (b *LogicLoop) detectChanges(f shared.Flight, prev *shared.FlightState, cur
 		taxiMsg := ""
 		estimatedTaxiTime := curr.TakeOffEstimated - curr.DepEstimated
 		if estimatedTaxiTime > 0 {
-			taxiMsg = fmt.Sprintf(" (estimated taxi time: %d mins)", estimatedTaxiTime/60)
+			taxiMsg = fmt.Sprintf("Estimated taxi time: %s", shared.FormatDuration(time.Duration(estimatedTaxiTime)*time.Second))
 		}
 		b.sendAlert(f, "flight_departed_from_gate", slack.NewSectionBlock(
-			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("*:airplane: Flight departed from %s!%s :airplane_departure:\nDeparture time: ~%s~ %s*", gateMsg, taxiMsg, depEstimated, depTime), false, false),
+			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("*:airplane: Flight departed from %s! :airplane:\nDeparture time: ~%s~ %s* \n %s", gateMsg, depEstimated, depTime, taxiMsg), false, false),
 			nil,
 			nil,
-		))
+		), nil)
 	}
 
 	// check if the flight took off
 
 	if curr.TakeOffActual != 0 && WasAlertSent(f.ID, "flight_takeoff", b.Config) == false {
-		takeOffTime := time.Unix(curr.TakeOffActual, 0).Format(time.Kitchen)
-		takeOffEstimated := time.Unix(curr.TakeOffEstimated, 0).Format(time.Kitchen)
+		takeOffTime := time.Unix(curr.TakeOffActual, 0).In(depLoc).Format(time.Kitchen)
+		takeOffEstimated := time.Unix(curr.TakeOffEstimated, 0).In(depLoc).Format(time.Kitchen)
 		flightEstimatedDuration := curr.ArrEstimated - curr.DepEstimated
 		b.sendAlert(f, "flight_takeoff", slack.NewSectionBlock(
 			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf(":airplane_departure: *Flight took off!* :airplane_departure:\nTakeoff time: ~%s~ %s \n Estimated flight duration: %s", takeOffEstimated, takeOffTime, shared.FormatDuration(time.Duration(flightEstimatedDuration)*time.Second)), false, false),
 			nil,
 			nil,
-		))
+		), nil)
 	}
 
 	// check if flight landed
@@ -178,13 +198,13 @@ func (b *LogicLoop) detectChanges(f shared.Flight, prev *shared.FlightState, cur
 		} else {
 			gateMsg = ""
 		}
-		arrTime := time.Unix(curr.ArrActual, 0).Format(time.Kitchen)
-		arrEstimated := time.Unix(curr.ArrEstimated, 0).Format(time.Kitchen)
+		arrTime := time.Unix(curr.ArrActual, 0).In(destLoc).Format(time.Kitchen)
+		arrEstimated := time.Unix(curr.ArrEstimated, 0).In(destLoc).Format(time.Kitchen)
 		b.sendAlert(f, "flight_landed", slack.NewSectionBlock(
 			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf(":airplane_arriving: *Flight landed!* :airplane_arriving:\nLanding time: ~%s~ %s%s", arrEstimated, arrTime, gateMsg), false, false),
 			nil,
 			nil,
-		))
+		), nil)
 		log.Printf("Flight %s has landed, stopping tracking\n", f.ID)
 		b.removeFlight(f.ID)
 		return
@@ -199,13 +219,13 @@ func (b *LogicLoop) detectChanges(f shared.Flight, prev *shared.FlightState, cur
 		} else {
 			gateMsg = ""
 		}
-		arrTime := time.Unix(curr.ArrActual, 0).Format(time.Kitchen)
-		arrEstimated := time.Unix(curr.ArrEstimated, 0).Format(time.Kitchen)
+		arrTime := time.Unix(curr.ArrActual, 0).In(destLoc).Format(time.Kitchen)
+		arrEstimated := time.Unix(curr.ArrEstimated, 0).In(destLoc).Format(time.Kitchen)
 		b.sendAlert(f, "flight_arrived_at_gate", slack.NewSectionBlock(
-			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf(":airplane: *Flight arrived%s* :airplane:\nArrival time: ~%s~ %s", gateMsg, arrTime, arrEstimated), false, false),
+			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf(":airplane: *Flight arrived%s* :airplane:\nArrival time: ~%s~ %s", gateMsg, arrEstimated, arrTime), false, false),
 			nil,
 			nil,
-		))
+		), nil)
 		log.Printf("Flight %s has arrived at gate, stopping tracking\n", f.ID)
 		b.removeFlight(f.ID)
 		return
@@ -218,32 +238,37 @@ func (b *LogicLoop) detectChanges(f shared.Flight, prev *shared.FlightState, cur
 
 		if window > 0 {
 			alertID := fmt.Sprintf("in_flight_update_%d", window)
-
+			image, err := maps.GenerateMapFromFlightDetail(b.Config.TileStore, *currData)
+			if err != nil {
+				log.Printf("Error generating map for flight %s: %v", f.ID, err)
+			}
+			progressBar := shared.GenerateProgressBar(10, float64(time.Since(time.Unix(curr.DepActual, 0)).Seconds())/float64(curr.ArrEstimated-curr.DepActual))
+			timeLeft := shared.FormatDuration(time.Until(time.Unix(curr.ArrEstimated, 0)))
 			b.sendAlert(f, alertID, slack.NewSectionBlock(
-				slack.NewTextBlockObject(slack.MarkdownType, ":airplane: *In-flight update!* Still cruising... :airplane:", false, false),
+				slack.NewTextBlockObject(slack.MarkdownType, ":airplane: *Still flying!* :airplane:\n "+progressBar+"\n("+timeLeft+" left)", false, false),
 				nil,
 				nil,
-			))
+			), image)
 		}
 	}
 
 	// check if departure_time is updated
 	if prev.DepEstimated != curr.DepEstimated {
-		prevTime := time.Unix(prev.DepEstimated, 0).Format(time.Kitchen)
-		currTime := time.Unix(curr.DepEstimated, 0).Format(time.Kitchen)
+		prevTime := time.Unix(prev.DepEstimated, 0).In(depLoc).Format(time.Kitchen)
+		currTime := time.Unix(curr.DepEstimated, 0).In(depLoc).Format(time.Kitchen)
 		b.sendAlert(f, fmt.Sprintf("departure_time_change_%d", curr.DepEstimated), slack.NewSectionBlock(
 			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf(":rotating_light: *Departure time updated!* :rotating_light:\nPrevious: %s\nNew: %s", prevTime, currTime), false, false),
 			nil,
 			nil,
-		))
+		), nil)
 	}
 	// check if gate was updated
-	if prev.OriginGate != curr.OriginGate {
+	if prev.OriginGate != curr.OriginGate && curr.OriginGate != "" {
 		b.sendAlert(f, fmt.Sprintf("gate_change_%s", curr.OriginGate), slack.NewSectionBlock(
 			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf(":rotating_light: *Gate updated!* :rotating_light:\nPrevious: %s\nNew: %s", prev.OriginGate, curr.OriginGate), false, false),
 			nil,
 			nil,
-		))
+		), nil)
 	}
 	// check if arrival gate was updated
 	if prev.DestGate != curr.DestGate {
@@ -251,22 +276,22 @@ func (b *LogicLoop) detectChanges(f shared.Flight, prev *shared.FlightState, cur
 			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf(":rotating_light: *Arrival gate updated!* :rotating_light:\nPrevious: %s\nNew: %s", prev.DestGate, curr.DestGate), false, false),
 			nil,
 			nil,
-		))
+		), nil)
 	}
 	// check if arrival time is updated
 	if prev.ArrEstimated != curr.ArrEstimated {
-		prevTime := time.Unix(prev.ArrEstimated, 0).Format(time.Kitchen)
-		currTime := time.Unix(curr.ArrEstimated, 0).Format(time.Kitchen)
+		prevTime := time.Unix(prev.ArrEstimated, 0).In(destLoc).Format(time.Kitchen)
+		currTime := time.Unix(curr.ArrEstimated, 0).In(destLoc).Format(time.Kitchen)
 		b.sendAlert(f, fmt.Sprintf("arrival_time_change_%d", curr.ArrEstimated), slack.NewSectionBlock(
 			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf(":rotating_light: *Arrival time updated!* :rotating_light:\nPrevious: %s\nNew: %s", prevTime, currTime), false, false),
 			nil,
 			nil,
-		))
+		), nil)
 	}
 
 }
 
-func (b *LogicLoop) sendAlert(f shared.Flight, alertType string, blocks slack.Block) {
+func (b *LogicLoop) sendAlert(f shared.Flight, alertType string, blocks slack.Block, image *image.RGBA) {
 	// add footer to blocks
 
 	footer := slack.NewContextBlock("",
@@ -277,13 +302,36 @@ func (b *LogicLoop) sendAlert(f shared.Flight, alertType string, blocks slack.Bl
 		return
 	}
 
-	_, _, err := b.Config.SlackClient.PostMessage(
-		f.SlackChannel,
-		slack.MsgOptionBlocks(blocks, footer),
-	)
-	if err != nil {
-		log.Printf("Error sending alert for flight %s (%s): %v", f.ID, alertType, err)
-		return
+	if image != nil {
+		var buf bytes.Buffer
+		if err := png.Encode(&buf, image); err != nil {
+			log.Printf("Error encoding image for flight %s (%s): %v", f.ID, alertType, err)
+			return
+		}
+		uploadResponse, err := b.Config.SlackClient.UploadFileV2(slack.UploadFileV2Parameters{
+			Channel:  f.SlackChannel,
+			Filename: "flight_map.png",
+			Reader:   &buf,
+			FileSize: buf.Len(),
+			Title:    fmt.Sprintf("%s - %s", f.FlightNumber, time.Now().Format("2006-01-02")),
+			Blocks: slack.Blocks{
+				BlockSet: []slack.Block{blocks, footer},
+			},
+		})
+		if err != nil {
+			log.Printf("Error uploading image for flight %s (%s): %v", f.ID, alertType, err)
+		}
+		fmt.Printf("Uploaded file: %+v\n", uploadResponse)
+
+	} else {
+		_, _, err := b.Config.SlackClient.PostMessage(
+			f.SlackChannel,
+			slack.MsgOptionBlocks(blocks, footer),
+		)
+		if err != nil {
+			log.Printf("Error sending alert for flight %s (%s): %v", f.ID, alertType, err)
+			return
+		}
 	}
 
 	shared.MarkAlertSent(f.ID, alertType, b.Config)
