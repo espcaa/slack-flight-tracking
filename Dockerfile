@@ -4,7 +4,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN go build -o slackbot main.go
+RUN go build -o slackbot .
 
 FROM alpine:3.18
 RUN apk add --no-cache ca-certificates
