@@ -73,14 +73,13 @@ func (b *LogicLoop) syncFlights() {
 
 	dbIDs := make(map[string]bool, len(flights))
 	for _, f := range flights {
-		// if flight departure is in less than 4 hours and it's not being tracked, start tracking it
+		dbIDs[f.ID] = true
+
 		if time.Until(time.Unix(f.Departure, 0)) < 4*time.Hour {
 			if _, exists := b.flightCancels[f.ID]; !exists {
 				log.Printf("New flight to track: %s departing at %s\n", f.ID, time.Unix(f.Departure, 0).Format(time.Kitchen))
 				b.addFlight(f)
 			}
-		} else {
-			log.Printf("Flight %s departure is more than 4 hours away, not tracking yet\n", f.ID)
 		}
 	}
 
