@@ -13,5 +13,3 @@ A slackbot to track commercial flights in your workspace!\
 - `flights-help`: Show help information
 - `flight-info`: Get information about a specific flight
 
-
-###
