@@ -56,6 +56,13 @@ func HandleTrackFlightFormSubmit(payload slack.InteractionCallback, config share
 				return
 			}
 			firstFlight := flightData.GetFirstFlight()
+			if firstFlight == nil {
+				log.Printf("No flight data found for flight number %s\n", flightNum)
+				config.SlackClient.PostEphemeral(payload.Channel.ID, payload.User.ID, slack.MsgOptionBlocks(
+					shared.NewErrorBlocks(fmt.Errorf("No flight information found for flight number %s. Please check the flight number and try again.", flightNum))...,
+				))
+				return
+			}
 			if firstFlight.Origin.Iata == "" {
 				log.Printf("No active flight found for flight number %s\n", flightNum)
 				config.SlackClient.PostEphemeral(payload.Channel.ID, payload.User.ID, slack.MsgOptionBlocks(
@@ -84,7 +91,7 @@ func HandleTrackFlightFormSubmit(payload slack.InteractionCallback, config share
 				log.Printf("Error parsing departure time: %v\n", err)
 				return
 			}
-			departureDateTime = departureDateTime.Add(time.Hour*time.Duration(departure_time.Hour()) + time.Minute*time.Duration(departure_time.Minute()))
+			departureDateTime = time.Date(departureDateTime.Year(), departureDateTime.Month(), departureDateTime.Day(), departure_time.Hour(), departure_time.Minute(), 0, 0, loc)
 			departureUnix = departureDateTime.Unix()
 
 			var flight shared.Flight = shared.Flight{

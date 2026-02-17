@@ -17,6 +17,11 @@ var UntrackInteraction = shared.Interaction{
 func HandleUntrackInteraction(payload slack.InteractionCallback, config shared.Config) {
 	log.Printf("Handling untrack interaction for user %s in channel %s\n", payload.User.ID, payload.Channel.ID)
 	args := strings.Split(payload.ActionCallback.BlockActions[0].ActionID, "-")
+	if len(args) < 3 {
+		log.Printf("Invalid action ID format: %s\n", payload.ActionCallback.BlockActions[0].ActionID)
+		config.SlackClient.PostEphemeral(payload.Channel.ID, payload.User.ID, slack.MsgOptionBlocks(shared.NewErrorBlocks(fmt.Errorf("Something went wrong while trying to untrack the flight. Please try again."))...))
+		return
+	}
 	channel := args[2]
 	flightNumber := args[1]
 	user := payload.User.ID
