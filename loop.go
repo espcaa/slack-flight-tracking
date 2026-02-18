@@ -46,7 +46,7 @@ func (b *LogicLoop) Run() {
 	log.Printf("Loaded %d flights from database\n", len(flights))
 
 	for _, f := range flights {
-		log.Printf("Tracking flight %s with departure at %s\n", f.ID, time.Unix(f.Departure, 0).Format(time.Kitchen))
+		log.Printf("Tracking flight %s with departure at %s (or in %s)\n", f.ID, time.Unix(f.Departure, 0).Format(time.Kitchen), shared.FormatDuration(time.Until(time.Unix(f.Departure, 0))))
 		b.addFlight(f)
 	}
 
@@ -95,7 +95,7 @@ func (b *LogicLoop) syncFlights() {
 }
 
 func (b *LogicLoop) trackFlight(ctx context.Context, f shared.Flight) {
-	ticker := time.NewTicker(2 * time.Minute)
+	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
 	for {
@@ -149,9 +149,8 @@ func (b *LogicLoop) detectChanges(f shared.Flight, prev *shared.FlightState, cur
 	// check if dep gate was announced
 	if curr.OriginGate != "" && WasAlertSent(f.ID, "departure_gate_announced", b.Config) == false {
 		depTime := time.Unix(curr.DepEstimated, 0).In(depLoc).Format(time.Kitchen)
-		depIn := shared.FormatDuration(time.Until(time.Unix(curr.DepEstimated, 0)))
 		b.sendAlert(f, "departure_gate_announced", slack.NewSectionBlock(
-			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("*:seat: Gate announced!* :seat:\nGate *%s*\nEstimated departure time: %s (_in %s_)", curr.OriginGate, depTime, depIn), false, false),
+			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("*:seat: Gate announced!* :seat:\nGate *%s*\nEstimated departure time: %s ", curr.OriginGate, depTime), false, false),
 			nil,
 			nil,
 		), nil)
@@ -175,7 +174,7 @@ func (b *LogicLoop) detectChanges(f shared.Flight, prev *shared.FlightState, cur
 			taxiMsg = fmt.Sprintf("Estimated taxi time: %s", shared.FormatDuration(time.Duration(estimatedTaxiTime)*time.Second))
 		}
 		b.sendAlert(f, "flight_departed_from_gate", slack.NewSectionBlock(
-			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("*:airplane: Flight departed from %s! :airplane:\nDeparture time: ~%s~ %s* \n %s", gateMsg, depEstimated, depTime, taxiMsg), false, false),
+			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("*:airplane: Flight departed from %s! :airplane:*\nDeparture time: ~%s~ %s \n %s", gateMsg, depEstimated, depTime, taxiMsg), false, false),
 			nil,
 			nil,
 		), nil)
