@@ -4,3 +4,4 @@ tmp/
 data/userdata.db
 .DS_Store
 flight-bot-slack
+bin
