@@ -178,8 +178,8 @@ func setupDatabase(db *sql.DB) {
         altitude INTEGER,
         groundspeed INTEGER,
         updated_at INTEGER,
-        last_announced_dep_estimated INTEGER,
-        last_announced_arr_estimated INTEGER
+        last_announced_dep_estimated INTEGER NOT NULL DEFAULT 0,
+        last_announced_arr_estimated INTEGER NOT NULL DEFAULT 0
     );
     `
 
@@ -190,8 +190,10 @@ func setupDatabase(db *sql.DB) {
 
 	// migrations for existing databases
 	migrations := []string{
-		"ALTER TABLE flight_state ADD COLUMN last_announced_dep_estimated INTEGER",
-		"ALTER TABLE flight_state ADD COLUMN last_announced_arr_estimated INTEGER",
+		"ALTER TABLE flight_state ADD COLUMN last_announced_dep_estimated INTEGER NOT NULL DEFAULT 0",
+		"ALTER TABLE flight_state ADD COLUMN last_announced_arr_estimated INTEGER NOT NULL DEFAULT 0",
+		"UPDATE flight_state SET last_announced_dep_estimated = 0 WHERE last_announced_dep_estimated IS NULL",
+		"UPDATE flight_state SET last_announced_arr_estimated = 0 WHERE last_announced_arr_estimated IS NULL",
 	}
 	for _, m := range migrations {
 		db.Exec(m)
