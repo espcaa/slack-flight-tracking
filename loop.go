@@ -143,8 +143,14 @@ func (b *LogicLoop) detectChanges(f shared.Flight, prev *shared.FlightState, cur
 
 	if prev == nil {
 		log.Printf("No previous state for flight %s, skipping change detection\n", f.ID)
+		curr.LastAnnouncedDepEstimated = curr.DepEstimated
+		curr.LastAnnouncedArrEstimated = curr.ArrEstimated
 		return
 	}
+
+	// copy over the last announced times from previous state
+	curr.LastAnnouncedDepEstimated = prev.LastAnnouncedDepEstimated
+	curr.LastAnnouncedArrEstimated = prev.LastAnnouncedArrEstimated
 
 	// check if dep gate was announced
 	if curr.OriginGate != "" && WasAlertSent(f.ID, "departure_gate_announced", b.Config) == false {
@@ -199,20 +205,18 @@ func (b *LogicLoop) detectChanges(f shared.Flight, prev *shared.FlightState, cur
 		// if gate is available, include it in the message
 		var gateMsg string
 		if curr.DestGate != "" {
-			gateMsg = fmt.Sprintf("\n taxiing to gate %s", curr.DestGate)
+			gateMsg = fmt.Sprintf("\n Taxiing to gate %s", curr.DestGate)
 		} else {
 			gateMsg = ""
 		}
-		arrTime := time.Unix(curr.ArrActual, 0).In(destLoc).Format(time.Kitchen)
-		arrEstimated := time.Unix(curr.ArrEstimated, 0).In(destLoc).Format(time.Kitchen)
+		arrTime := time.Unix(curr.LandingActual, 0).In(destLoc).Format(time.Kitchen)
+		arrEstimated := time.Unix(curr.LandingEstimated, 0).In(destLoc).Format(time.Kitchen)
 		b.sendAlert(f, "flight_landed", slack.NewSectionBlock(
 			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf(":airplane_arriving: *Flight landed!* :airplane_arriving:\nLanding time: ~%s~ %s%s", arrEstimated, arrTime, gateMsg), false, false),
 			nil,
 			nil,
 		), nil)
-		log.Printf("Flight %s has landed, stopping tracking\n", f.ID)
-		b.removeFlight(f.ID)
-		return
+		log.Printf("Flight %s has landed, taxiing to gate\n", f.ID)
 	}
 
 	// check if flight arrived at gate
@@ -247,7 +251,7 @@ func (b *LogicLoop) detectChanges(f shared.Flight, prev *shared.FlightState, cur
 			if err != nil {
 				log.Printf("Error generating map for flight %s: %v", f.ID, err)
 			}
-			progressBar := shared.GenerateProgressBar(10, float64(time.Since(time.Unix(curr.DepActual, 0)).Seconds())/float64(curr.ArrEstimated-curr.DepActual))
+			progressBar := shared.GenerateProgressBar(10, 100*float64(time.Since(time.Unix(curr.DepActual, 0)).Seconds())/float64(curr.ArrEstimated-curr.DepActual))
 			timeLeft := shared.FormatDuration(time.Until(time.Unix(curr.ArrEstimated, 0)))
 			b.sendAlert(f, alertID, slack.NewSectionBlock(
 				slack.NewTextBlockObject(slack.MarkdownType, ":airplane: *Still flying!* :airplane:\n "+progressBar+"\n("+timeLeft+" left)", false, false),
@@ -257,15 +261,16 @@ func (b *LogicLoop) detectChanges(f shared.Flight, prev *shared.FlightState, cur
 		}
 	}
 
-	// check if departure_time is updated
-	if prev.DepEstimated != curr.DepEstimated {
-		prevTime := time.Unix(prev.DepEstimated, 0).In(depLoc).Format(time.Kitchen)
+	// check if departure_time is updated (by at least 15 minutes)
+	if depBaseline := lastAnnounced(prev.LastAnnouncedDepEstimated, prev.DepEstimated); curr.DepEstimated != 0 && absDuration(curr.DepEstimated-depBaseline) >= estimateChangeThreshold {
+		prevTime := time.Unix(depBaseline, 0).In(depLoc).Format(time.Kitchen)
 		currTime := time.Unix(curr.DepEstimated, 0).In(depLoc).Format(time.Kitchen)
 		b.sendAlert(f, fmt.Sprintf("departure_time_change_%d", curr.DepEstimated), slack.NewSectionBlock(
 			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf(":rotating_light: *Departure time updated!* :rotating_light:\nPrevious: %s\nNew: %s", prevTime, currTime), false, false),
 			nil,
 			nil,
 		), nil)
+		curr.LastAnnouncedDepEstimated = curr.DepEstimated
 	}
 	// check if gate was updated
 	if prev.OriginGate != curr.OriginGate && curr.OriginGate != "" {
@@ -283,17 +288,36 @@ func (b *LogicLoop) detectChanges(f shared.Flight, prev *shared.FlightState, cur
 			nil,
 		), nil)
 	}
-	// check if arrival time is updated
-	if prev.ArrEstimated != curr.ArrEstimated {
-		prevTime := time.Unix(prev.ArrEstimated, 0).In(destLoc).Format(time.Kitchen)
+	// check if arrival time is updated (by at least 15 minutes)
+	if arrBaseline := lastAnnounced(prev.LastAnnouncedArrEstimated, prev.ArrEstimated); curr.ArrEstimated != 0 && absDuration(curr.ArrEstimated-arrBaseline) >= estimateChangeThreshold {
+		prevTime := time.Unix(arrBaseline, 0).In(destLoc).Format(time.Kitchen)
 		currTime := time.Unix(curr.ArrEstimated, 0).In(destLoc).Format(time.Kitchen)
 		b.sendAlert(f, fmt.Sprintf("arrival_time_change_%d", curr.ArrEstimated), slack.NewSectionBlock(
 			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf(":rotating_light: *Arrival time updated!* :rotating_light:\nPrevious: %s\nNew: %s", prevTime, currTime), false, false),
 			nil,
 			nil,
 		), nil)
+		curr.LastAnnouncedArrEstimated = curr.ArrEstimated
 	}
 
+}
+
+// threshold for sending alerts on estimated time changes (15 minutes) (spam is not nice)
+const estimateChangeThreshold = 15 * 60
+
+// utils to calculate tresholds
+func lastAnnounced(announced, fallback int64) int64 {
+	if announced != 0 {
+		return announced
+	}
+	return fallback
+}
+
+func absDuration(d int64) int64 {
+	if d < 0 {
+		return -d
+	}
+	return d
 }
 
 func (b *LogicLoop) sendAlert(f shared.Flight, alertType string, blocks slack.Block, image *image.RGBA) {

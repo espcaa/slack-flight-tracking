@@ -177,12 +177,23 @@ func setupDatabase(db *sql.DB) {
         arr_actual INTEGER,
         altitude INTEGER,
         groundspeed INTEGER,
-        updated_at INTEGER
+        updated_at INTEGER,
+        last_announced_dep_estimated INTEGER,
+        last_announced_arr_estimated INTEGER
     );
     `
 
 	_, err := db.Exec(schema)
 	if err != nil {
 		log.Fatal("Could not create tables:", err)
+	}
+
+	// migrations for existing databases
+	migrations := []string{
+		"ALTER TABLE flight_state ADD COLUMN last_announced_dep_estimated INTEGER",
+		"ALTER TABLE flight_state ADD COLUMN last_announced_arr_estimated INTEGER",
+	}
+	for _, m := range migrations {
+		db.Exec(m)
 	}
 }

@@ -63,4 +63,7 @@ type FlightState struct {
 	Altitude         int    `db:"altitude"`
 	Groundspeed      int    `db:"groundspeed"`
 	UpdatedAt        int64  `db:"updated_at"`
+
+	LastAnnouncedDepEstimated int64 `db:"last_announced_dep_estimated"`
+	LastAnnouncedArrEstimated int64 `db:"last_announced_arr_estimated"`
 }
