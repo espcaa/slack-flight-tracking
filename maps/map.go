@@ -31,6 +31,48 @@ var planeOutlineColor string = "#99b8cc"
 var planeIcon image.Image
 var planeIcons = make(map[string]image.Image)
 
+// used when no default route
+func GreatCirclePoints(lat1, lon1, lat2, lon2 float64, n int) [][2]float64 {
+	toRad := math.Pi / 180
+	toDeg := 180 / math.Pi
+
+	φ1, λ1 := lat1*toRad, lon1*toRad
+	φ2, λ2 := lat2*toRad, lon2*toRad
+
+	d := 2 * math.Asin(math.Sqrt(
+		math.Pow(math.Sin((φ2-φ1)/2), 2)+
+			math.Cos(φ1)*math.Cos(φ2)*math.Pow(math.Sin((λ2-λ1)/2), 2),
+	))
+
+	points := make([][2]float64, 0, n+1)
+
+	if d == 0 {
+		// identical points
+		for i := 0; i <= n; i++ {
+			points = append(points, [2]float64{lat1, lon1})
+		}
+		return points
+	}
+
+	for i := 0; i <= n; i++ {
+		f := float64(i) / float64(n)
+
+		A := math.Sin((1-f)*d) / math.Sin(d)
+		B := math.Sin(f*d) / math.Sin(d)
+
+		x := A*math.Cos(φ1)*math.Cos(λ1) + B*math.Cos(φ2)*math.Cos(λ2)
+		y := A*math.Cos(φ1)*math.Sin(λ1) + B*math.Cos(φ2)*math.Sin(λ2)
+		z := A*math.Sin(φ1) + B*math.Sin(φ2)
+
+		φi := math.Atan2(z, math.Sqrt(x*x+y*y))
+		λi := math.Atan2(y, x)
+
+		points = append(points, [2]float64{φi * toDeg, λi * toDeg})
+	}
+
+	return points
+}
+
 func init() {
 	// load everything from assets/planes into planeIcons
 	var dir, err = os.ReadDir("assets/planes")
@@ -274,6 +316,31 @@ func GenerateMapFromFlightDetail(store *TileStore, flightDetails flights.FlightD
 		dc.Stroke()
 
 		// Reset dash so it doesn't affect future drawing
+		dc.SetDash()
+	}
+
+	// if there are no waypoints, draw a dotted line from the last track point to the destination airport (but geodesic)
+	if len(flightDetails.Waypoints) < 2 {
+		dc.SetLineWidth(base * 0.003)
+		dc.SetDash(base*0.01, base*0.01)
+		dc.SetHexColor("#6b95b0")
+
+		const segments = 64
+		gcPoints := GreatCirclePoints(
+			lastTrackPoint.Coord[0], lastTrackPoint.Coord[1],
+			flightDetails.Destination.Coordinates[0], flightDetails.Destination.Coordinates[1],
+			segments,
+		)
+
+		firstPix := LonLatToPixel(gcPoints[0][1], gcPoints[0][0], zoom)
+		dc.MoveTo(firstPix.X-p1X, firstPix.Y-p1Y)
+
+		for i := 1; i < len(gcPoints); i++ {
+			pix := LonLatToPixel(gcPoints[i][1], gcPoints[i][0], zoom)
+			dc.LineTo(pix.X-p1X, pix.Y-p1Y)
+		}
+
+		dc.Stroke()
 		dc.SetDash()
 	}
 

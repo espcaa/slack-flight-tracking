@@ -7,6 +7,7 @@ import (
 	"flight-tracker-slack/shared"
 	"fmt"
 	"image/png"
+	"strings"
 	"time"
 
 	"github.com/google/shlex"
@@ -127,25 +128,78 @@ func FlightInfo(slashCommand slack.SlashCommand, config shared.Config) ([]slack.
 	altitude := fd.Altitude
 	speed := fd.Groundspeed
 
+	departureTimezone := strings.TrimPrefix(fd.Origin.TZ, ":")
+	arrivalTimezone := strings.TrimPrefix(fd.Destination.TZ, ":")
+	depLoc, err := time.LoadLocation(departureTimezone)
+	if err != nil {
+		return shared.NewErrorBlocks(err), false, nil
+	}
+	arrLoc, err := time.LoadLocation(arrivalTimezone)
+	if err != nil {
+		return shared.NewErrorBlocks(err), false, nil
+	}
+
 	schedule := fd.GetSchedule()
-	departureScheduled := schedule.DepartureScheduled.Format("15:04") // HH:MM
-	arrivalScheduled := schedule.ArrivalScheduled.Format("15:04")
-	actualDeparture := schedule.DepartureActual.Format("15:04")
-	estimatedArrival := schedule.ArrivalEstimated.Format("15:04")
+	departureScheduled := schedule.DepartureScheduled.In(depLoc).Format("15:04")
+	departureActual := schedule.DepartureActual.In(depLoc).Format("15:04")
+	departureEstimated := schedule.DepartureEstimated.In(depLoc).Format("15:04")
+	arrivalScheduled := schedule.ArrivalScheduled.In(arrLoc).Format("15:04")
+	arrivalEstimated := schedule.ArrivalEstimated.In(arrLoc).Format("15:04")
+	arrivalActual := schedule.ArrivalActual.In(arrLoc).Format("15:04")
+
+	departureMsg := ""
+	if schedule.DepartureActual.IsZero() && schedule.DepartureEstimated.IsZero() {
+		departureMsg = departureScheduled + " (scheduled)"
+	} else if schedule.DepartureActual.IsZero() && !schedule.DepartureEstimated.IsZero() {
+		departureMsg = departureScheduled + " (estimated at " + departureEstimated + ")"
+	} else {
+		departureMsg = departureActual + " (was scheduled at " + departureScheduled + ")"
+	}
+
+	arrivalMsg := ""
+	if schedule.ArrivalActual.IsZero() && schedule.ArrivalEstimated.IsZero() {
+		arrivalMsg = arrivalScheduled + " (scheduled)"
+	} else if schedule.ArrivalActual.IsZero() && !schedule.ArrivalEstimated.IsZero() {
+		arrivalMsg = arrivalScheduled + " (estimated at " + arrivalEstimated + ")"
+	} else {
+		arrivalMsg = arrivalActual + " (was scheduled at " + arrivalScheduled + ")"
+	}
 
 	headerText := "Flight " + flightNumber + " - " + time.Now().Format("2006-01-02")
 	blocks = append(blocks, slack.NewHeaderBlock(
 		slack.NewTextBlockObject(slack.PlainTextType, headerText, false, false),
 	))
 
+	gateText := ""
+	if fd.Origin.Gate == "" && fd.Destination.Gate == "" {
+		gateText = ""
+	} else {
+
+		// nullify gate values if they are empty
+		if fd.Origin.Gate == "" {
+			fd.Origin.Gate = "N/A"
+		}
+		if fd.Destination.Gate == "" {
+			fd.Destination.Gate = "N/A"
+		}
+
+		gateText +=
+			"*Gate:* " + fmt.Sprintf("%s → %s", fd.Origin.Gate, fd.Destination.Gate)
+	}
+
+	flightStatusText := ""
+	if fd.FlightStatus != "" {
+		flightStatusText = "\n\n_Flight status: " + fd.FlightStatus + "_"
+	}
+
 	infoText := "*From:* " + origin + "\n" +
 		"*To:* " + destination + "\n" +
-		"*Departure:* " + actualDeparture + " (scheduled: " + departureScheduled + ")\n" +
-		"*Arrival:* " + arrivalScheduled + " (estimated: " + estimatedArrival + ")\n" +
+		"*Departure:* " + departureMsg + "\n" +
+		"*Arrival:* " + arrivalMsg + "\n" +
 		"*Altitude:* " + fmt.Sprintf("%d00 ft", altitude) + "\n" +
 		"*Speed:* " + fmt.Sprintf("%d knots", speed) + "\n" +
-		"*Gate:* " + fmt.Sprintf("%s → %s", fd.Origin.Gate, fd.Destination.Gate) +
-		"\n\n_Flight status: " + fd.FlightStatus + "_"
+		gateText +
+		flightStatusText
 
 	blocks = append(blocks, slack.NewSectionBlock(
 		slack.NewTextBlockObject(slack.MarkdownType, infoText, false, false),
